@@ -1,0 +1,8 @@
+{
+  "name": "@civicfix/ui-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "shadcn/ui-shaped component primitives for the CivicFix website, styled with CSS Modules (no Tailwind)",
+  "main": "index.ts",
+  "types": "index.ts"
+}

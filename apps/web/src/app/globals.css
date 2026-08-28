@@ -1,0 +1,132 @@
+:root {
+  /* Type scale */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 20px;
+  --font-size-xl: 24px;
+  --font-size-2xl: 32px;
+  --font-size-3xl: 44px;
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Radii — pill controls, generously rounded cards */
+  --radius-control: 10px;
+  --radius-pill: 999px;
+  --radius-card: 20px;
+  --radius-hero: 28px;
+  --radius-modal: 16px;
+
+  /* Fonts */
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-display: "BubbledotICG-FinePos", "Geist Pixel Circle", monospace;
+
+  /* ---- Dark system (primary) ---- */
+  --color-black: #000000;
+  --color-white: #ffffff;
+
+  --color-background: #000000;
+  --color-background-muted: #0a0a0b;
+  --color-surface: #111113;
+  --color-surface-muted: #1a1a1d;
+  --color-surface-raised: #202024;
+
+  --color-foreground: #ffffff;
+  --color-muted-foreground: #8e8e8e;
+  --color-dim-foreground: #5f5f63;
+
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-border-strong: rgba(255, 255, 255, 0.24);
+
+  /* Inverse = the light side. Primary buttons are white on black. */
+  --color-inverse-background: #ffffff;
+  --color-inverse-foreground: #0a0a0a;
+
+  --color-pill-dark: #28282a;
+  --color-nav-text: #2e2e2e;
+  --nav-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+
+  /* Accent tokens — small status/category signal only, never page chrome */
+  --color-civic-blue: #8fb4ff;
+  --color-civic-blue-soft: rgba(94, 138, 255, 0.16);
+  --color-civic-green: #6ee7a5;
+  --color-civic-green-soft: rgba(52, 211, 153, 0.16);
+  --color-civic-amber: #f5c069;
+  --color-civic-amber-soft: rgba(245, 158, 11, 0.16);
+  --color-civic-red: #ff9a92;
+  --color-civic-red-soft: rgba(248, 113, 113, 0.16);
+
+  /* Landing-page-specific aliases */
+  --l-bg: #000000;
+  --l-text: #ffffff;
+  --l-muted: #8e8e8e;
+  --l-nav-text: #2e2e2e;
+  --l-pill-dark: #28282a;
+  --l-sign-in-text: #c8c8c8;
+  --l-nav-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  --l-trust-bg: #28282a;
+  --l-trust-border: rgba(255, 255, 255, 0.4);
+  --l-trust-text: #c4c2c3;
+  --l-font-sans: var(--font-sans);
+  --l-font-display: var(--font-display);
+}
+
+/* The landing hero fills the first viewport, then the page scrolls normally. */
+html:has([data-page="landing"]) body {
+  background: var(--l-bg);
+}
+
+body.menu-open {
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Scroll-reveal is a progressive enhancement — without JS the observer never
+   runs, so every revealed block must stay fully visible. */
+noscript {
+  display: contents;
+}

@@ -1,0 +1,65 @@
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+
+const STAFF_ROLES = ["field_worker", "department_manager", "administrator", "auditor"];
+
+/**
+ * Route guard for the two authenticated portals:
+ *  - /app/**   requires any signed-in user
+ *  - /admin/** additionally requires a staff role (from user_roles, never
+ *    from client-editable user_metadata)
+ *
+ * Fails closed: if Supabase isn't configured at all, protected routes are
+ * unreachable rather than silently open.
+ */
+export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  const isProtected = path.startsWith("/admin") || path.startsWith("/app");
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !publishableKey) {
+    if (isProtected) return NextResponse.redirect(new URL("/sign-in", request.url));
+    return NextResponse.next();
+  }
+
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient(url, publishableKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+      },
+    },
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!isProtected) return response;
+
+  if (!user) {
+    const redirectUrl = new URL("/sign-in", request.url);
+    redirectUrl.searchParams.set("next", path);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (path.startsWith("/admin")) {
+    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+    const isStaff = (roles ?? []).some((r) => STAFF_ROLES.includes(r.role as string));
+    if (!isStaff) return NextResponse.redirect(new URL("/app", request.url));
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: ["/admin/:path*", "/app/:path*"],
+};

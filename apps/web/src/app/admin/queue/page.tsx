@@ -1,0 +1,88 @@
+import Link from "next/link";
+
+import { Card } from "@civicfix/ui-web";
+
+import { StatusPill } from "@/components/StatusPill";
+import { createServerSupabase } from "@/lib/supabase-server";
+import { CATEGORY_LABEL, SEVERITY_LABEL } from "@/lib/status";
+import type { IssueCategory, IssueSeverity, IssueStatus } from "@/lib/types";
+
+import styles from "../admin.module.css";
+
+interface QueueRow {
+  id: string;
+  tracking_id: string;
+  category: IssueCategory;
+  severity: IssueSeverity;
+  status: IssueStatus;
+  created_at: string;
+  departments: { name: string } | null;
+}
+
+async function loadQueue(): Promise<QueueRow[] | null> {
+  const supabase = await createServerSupabase();
+  if (!supabase) return null;
+
+  const { data } = await supabase
+    .from("issues")
+    .select("id, tracking_id, category, severity, status, created_at, departments(name)")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  return (data ?? []) as unknown as QueueRow[];
+}
+
+export default async function IssueQueuePage() {
+  const issues = await loadQueue();
+
+  return (
+    <div>
+      <div className={styles.pageHeader}>
+        <h1 className={styles.title}>Issue queue</h1>
+        <p className={styles.subtitle}>Triage incoming reports, review AI suggestions, and route to a department.</p>
+      </div>
+
+      <Card>
+        {issues === null ? (
+          <p className={styles.emptyState}>
+            Supabase is not configured — connect it to see live reports here.
+          </p>
+        ) : issues.length === 0 ? (
+          <p className={styles.emptyState}>No reports yet.</p>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Tracking ID</th>
+                  <th>Category</th>
+                  <th>Severity</th>
+                  <th>Department</th>
+                  <th>Status</th>
+                  <th>Reported</th>
+                </tr>
+              </thead>
+              <tbody>
+                {issues.map((issue) => (
+                  <tr key={issue.id}>
+                    <td>
+                      <Link href={`/admin/queue/${issue.id}`}>{issue.tracking_id}</Link>
+                    </td>
+                    <td>{CATEGORY_LABEL[issue.category]}</td>
+                    <td>{SEVERITY_LABEL[issue.severity]}</td>
+                    <td>{issue.departments?.name ?? "Unassigned"}</td>
+                    <td>
+                      <StatusPill status={issue.status} />
+                    </td>
+                    <td>{new Date(issue.created_at).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}

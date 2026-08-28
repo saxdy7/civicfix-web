@@ -1,0 +1,7 @@
+{
+  "name": "civicfix",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CivicFix - AI-assisted civic issue reporting and resolution platform",
+  "workspaces": ["apps/web", "packages/*"]
+}

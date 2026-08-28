@@ -1,0 +1,29 @@
+.title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(28px, 5vw, 48px);
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+  margin: 0 0 var(--space-6);
+}
+
+.section {
+  margin-bottom: var(--space-5);
+}
+
+.section h2 {
+  font-size: var(--font-size-lg);
+  margin: 0 0 var(--space-2);
+}
+
+.section p,
+.section li {
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-md);
+  line-height: 1.6;
+}
+
+.section ul {
+  padding-left: var(--space-5);
+  margin: 0;
+}

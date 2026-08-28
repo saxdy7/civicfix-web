@@ -1,0 +1,23 @@
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.value {
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--color-foreground);
+}
+
+.label {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.centered {
+  align-items: center;
+  text-align: center;
+}

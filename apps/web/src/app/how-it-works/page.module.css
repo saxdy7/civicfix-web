@@ -1,0 +1,103 @@
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  margin-bottom: var(--space-8);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(28px, 5vw, 52px);
+  line-height: 1.1;
+  letter-spacing: -0.05em;
+  max-width: 22ch;
+}
+
+.accent {
+  color: var(--color-muted-foreground);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  max-width: 56ch;
+  line-height: 1.6;
+}
+
+.section {
+  margin-bottom: var(--space-8);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-lg);
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.lifecycle {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.lifecycleCard {
+  gap: var(--space-1);
+}
+
+.roles {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+}
+
+.stepIndex {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-muted-foreground);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.cardBody {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+  line-height: 1.6;
+}
+
+.aiNote {
+  padding: var(--space-6);
+}
+
+.cardTitleInverse {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.cardBodyInverse {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
+  color: rgba(10, 10, 10, 0.72);
+  max-width: 72ch;
+}
+
+@media (max-width: 900px) {
+  .lifecycle,
+  .roles {
+    grid-template-columns: 1fr;
+  }
+}

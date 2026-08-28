@@ -1,0 +1,129 @@
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(28px, 5vw, 48px);
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+}
+
+.accent {
+  color: var(--color-muted-foreground);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  max-width: 60ch;
+  line-height: 1.6;
+}
+
+.filters {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin: var(--space-5) 0 var(--space-4);
+  align-items: center;
+}
+
+.filterChip {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.filterChip:hover {
+  color: var(--color-foreground);
+  background: var(--color-surface-muted);
+}
+
+.filterChipActive {
+  background: var(--color-inverse-background);
+  border-color: var(--color-inverse-background);
+  color: var(--color-inverse-foreground);
+}
+
+.count {
+  margin-left: auto;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+}
+
+.issueLink {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.issueCard {
+  height: 100%;
+  transition: border-color 0.15s ease;
+}
+
+.issueCard:hover {
+  border-color: var(--color-foreground);
+}
+
+.issueCardSelected {
+  border-color: var(--color-foreground);
+  box-shadow: 0 0 0 1px var(--color-foreground);
+}
+
+.issueTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.issueTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.issueBody {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+  line-height: 1.6;
+}
+
+.issueMeta {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-neutral-400);
+}
+
+.emptyState {
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 760px) {
+  .list {
+    grid-template-columns: 1fr;
+  }
+}

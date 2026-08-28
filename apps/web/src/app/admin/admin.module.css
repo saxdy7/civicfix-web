@@ -1,0 +1,255 @@
+.pageHeader {
+  margin-bottom: var(--space-6);
+}
+
+.emptyState {
+  padding: var(--space-7);
+  text-align: center;
+  color: var(--color-muted-foreground);
+}
+
+.errorText {
+  color: var(--color-civic-red);
+  font-size: var(--font-size-sm);
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(24px, 3vw, 34px);
+  letter-spacing: -0.05em;
+  line-height: 1.15;
+  margin: 0 0 var(--space-2);
+}
+
+.subtitle {
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.statCard {
+  gap: var(--space-1);
+}
+
+.statValue {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--color-foreground);
+}
+
+.statLabel {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.statDelta {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.deltaGood {
+  color: var(--color-civic-green);
+}
+
+.deltaBad {
+  color: var(--color-civic-red);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-3);
+}
+
+/* ---------- Tables ---------- */
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.table th {
+  text-align: left;
+  color: var(--color-muted-foreground);
+  font-weight: 600;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--color-surface-muted);
+}
+
+.table a {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.table a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Chips ---------- */
+.toolbar {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+  align-items: center;
+}
+
+.chip {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.chipActive {
+  background: var(--color-inverse-background);
+  border-color: var(--color-inverse-background);
+  color: var(--color-inverse-foreground);
+}
+
+/* ---------- Kanban ---------- */
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.kanbanColumn {
+  background: var(--color-background-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.kanbanColumnTitle {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0;
+}
+
+/* ---------- Audit findings ---------- */
+.findingRow {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.findingRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.findingDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+
+.findingTitle {
+  font-weight: 700;
+  font-size: var(--font-size-sm);
+  margin: 2px 0;
+}
+
+.findingDescription {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.findingCategory {
+  font-size: 11px;
+  color: var(--color-neutral-400);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0;
+  font-weight: 700;
+}
+
+/* ---------- Bar chart ---------- */
+.barRow {
+  display: grid;
+  grid-template-columns: 140px 1fr 48px;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.barRow:last-child {
+  margin-bottom: 0;
+}
+
+.barTrack {
+  height: 8px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: var(--color-inverse-background);
+  border-radius: var(--radius-pill);
+}
+
+.barValue {
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .kanban {
+    grid-template-columns: 1fr;
+  }
+}
