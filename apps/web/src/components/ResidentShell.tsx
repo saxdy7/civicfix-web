@@ -27,13 +27,6 @@ function buildNavGroups(counts?: ResidentCounts) {
       ],
     },
     {
-      label: "Community",
-      items: [
-        { href: "/map", label: "Live issue map" },
-        { href: "/how-it-works", label: "How it works" },
-      ],
-    },
-    {
       label: "Account",
       items: [{ href: "/app/profile", label: "Profile & privacy" }],
     },

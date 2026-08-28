@@ -8,6 +8,7 @@ web-build/
 .env.local
 *.env.local
 .venv/
+supabase/.temp/
 __pycache__/
 *.pyc
 .pytest_cache/
