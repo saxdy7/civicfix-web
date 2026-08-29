@@ -1,6 +1,6 @@
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireRole, requireUser } from "./lib/auth";
+import { getViewer, requireRole, requireUser } from "./lib/auth";
 
 export const submit = mutation({
   args: {
@@ -38,7 +38,8 @@ export const submit = mutation({
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const user = await requireUser(ctx);
+    const user = await getViewer(ctx);
+    if (!user) return [];
     const roles = await ctx.db
       .query("userRoles")
       .withIndex("by_user", (q) => q.eq("userId", user._id))

@@ -17,28 +17,39 @@ export interface SessionProfile {
 }
 
 async function getConvexToken(): Promise<string | undefined> {
-  const { getToken } = await auth();
-  return (await getToken({ template: "convex" })) ?? undefined;
+  try {
+    const { getToken } = await auth();
+    return (await getToken({ template: "convex" })) ?? undefined;
+  } catch (err) {
+    console.warn("[session] Failed to get Convex JWT token from Clerk:", err);
+    return undefined;
+  }
 }
 
 /** Resolves the signed-in Clerk user's Convex profile + roles, or null if unauthenticated. */
 export async function getSessionProfile(): Promise<SessionProfile | null> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return null;
+  try {
+    const { userId: clerkId } = await auth();
+    if (!clerkId) return null;
 
-  const token = await getConvexToken();
-  const viewer = await fetchQuery(api.users.viewer, {}, { token });
-  if (!viewer) return null;
+    const token = await getConvexToken();
+    const viewer = await fetchQuery(api.users.viewer, {}, { token });
+    if (!viewer) return null;
 
-  return {
-    userId: viewer._id,
-    name: viewer.fullName || viewer.email?.split("@")[0] || "Resident",
-    email: viewer.email ?? "",
-    roles: viewer.roles,
-    isStaff: viewer.roles.some((r) => STAFF_ROLES.includes(r)),
-    isAdmin: viewer.roles.includes("administrator"),
-    createdAt: new Date(viewer.createdAt).toISOString(),
-  };
+    return {
+      userId: viewer._id,
+      name: viewer.fullName || viewer.email?.split("@")[0] || "Resident",
+      email: viewer.email ?? "",
+      roles: viewer.roles,
+      isStaff: viewer.roles.some((r) => STAFF_ROLES.includes(r)),
+      isAdmin: viewer.roles.includes("administrator"),
+      createdAt: new Date(viewer.createdAt).toISOString(),
+    };
+  } catch {
+    // auth() throws if clerkMiddleware hasn't run on this route.
+    // Return null so pages degrade gracefully rather than crashing.
+    return null;
+  }
 }
 
 /** Call once right after Clerk resolves a signed-in user (e.g. a client effect) to create/refresh their Convex profile. */

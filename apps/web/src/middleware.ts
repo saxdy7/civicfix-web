@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { api } from "@convex/_generated/api";
 
-const DESK_STAFF_ROLES = ["department_manager", "administrator", "auditor"];
+const DESK_STAFF_ROLES = ["field_worker", "department_manager", "administrator", "auditor"];
 const ADMIN_ONLY_PREFIXES = ["/admin/users", "/admin/access-requests"];
 
 const isAppRoute = createRouteMatcher(["/app(.*)"]);
@@ -36,8 +36,16 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   if (isAdminRoute(req)) {
-    const token = await getToken({ template: "convex" });
-    const viewer = await fetchQuery(api.users.viewer, {}, { token: token ?? undefined });
+    let viewer = null;
+    try {
+      const token = await getToken({ template: "convex" });
+      if (token) {
+        viewer = await fetchQuery(api.users.viewer, {}, { token });
+      }
+    } catch (err) {
+      console.warn("[middleware] Viewer role query failed:", err);
+    }
+
     const roles = viewer?.roles ?? [];
     const hasDeskRole = roles.some((r) => DESK_STAFF_ROLES.includes(r));
 
@@ -53,5 +61,14 @@ export default clerkMiddleware(async (auth, req) => {
 });
 
 export const config = {
-  matcher: ["/admin/:path*", "/app/:path*"],
+  /*
+   * Match ALL routes except:
+   *  - Next.js static files (_next/static, _next/image)
+   *  - favicon and other public root assets
+   * This ensures clerkMiddleware() runs on every page/route that could call
+   * auth(), regardless of whether it is a protected route.
+   */
+  matcher: [
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

@@ -112,6 +112,7 @@ export function SignUpForm() {
                 {error}
               </p>
             ) : null}
+            <div id="clerk-captcha" />
             <Button type="submit" block disabled={submitting}>
               {submitting ? "Verifying…" : "Verify and continue"}
             </Button>
@@ -197,9 +198,15 @@ export function SignUpForm() {
           {error ? (
             <p className={styles.errorText} role="alert">
               {error}
+              {error.toLowerCase().includes("breach") || error.toLowerCase().includes("data") ? (
+                <span style={{ display: "block", marginTop: 4, fontSize: "0.8em", opacity: 0.8 }}>
+                  Try a stronger password with a mix of letters, numbers and symbols.
+                </span>
+              ) : null}
             </p>
           ) : null}
 
+          <div id="clerk-captcha" />
           <Button type="submit" block disabled={submitting || !isLoaded}>
             {submitting ? "Creating account…" : "Create account"}
           </Button>

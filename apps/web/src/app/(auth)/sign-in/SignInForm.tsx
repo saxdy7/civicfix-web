@@ -1,6 +1,6 @@
 "use client";
 
-import { useSignIn } from "@clerk/nextjs";
+import { useClerk, useSignIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -15,15 +15,11 @@ function safeNextPath(value: string | null): string | null {
   return value;
 }
 
-function authErrorMessage(err: unknown): string {
-  const clerkErr = err as { errors?: { message?: string }[] };
-  return clerkErr?.errors?.[0]?.message ?? "Something went wrong. Please try again.";
-}
-
 export function SignInForm() {
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
   const { isLoaded, signIn, setActive } = useSignIn();
+  const { signOut } = useClerk();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -31,65 +27,54 @@ export function SignInForm() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleLogin = async (idToUse: string, passToUse: string) => {
-    if (!isLoaded) return;
+  const attemptSignIn = async (id: string, pass: string): Promise<"ok" | "not_found" | string> => {
+    try {
+      try { await signOut(); } catch { /* ignore if no session */ }
+      const created = await signIn!.create({ identifier: id, password: pass });
+      if (created.status === "complete") {
+        await setActive!({ session: created.createdSessionId });
+        window.location.href = next ?? "/post-sign-in";
+        return "ok";
+      }
+      if (created.status === "needs_first_factor") {
+        const factor = await signIn!.attemptFirstFactor({ strategy: "password", password: pass });
+        if (factor.status === "complete") {
+          await setActive!({ session: factor.createdSessionId });
+          window.location.href = next ?? "/post-sign-in";
+          return "ok";
+        }
+      }
+      return "Sign-in incomplete. Please try again.";
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: { code?: string; longMessage?: string; message?: string }[] };
+      const code = clerkErr?.errors?.[0]?.code ?? "";
+      const msg = clerkErr?.errors?.[0]?.longMessage ?? clerkErr?.errors?.[0]?.message ?? "Sign-in failed.";
+      if (code === "form_identifier_not_found") return "not_found";
+      return msg;
+    }
+  };
 
-    const trimmedIdentifier = idToUse.trim();
-    if (trimmedIdentifier.length < 3) return setError("Enter your email or employee ID.");
-    if (passToUse.length < 8) return setError("Password must be at least 8 characters.");
+  const handleLogin = async (idToUse: string, passToUse: string) => {
+    if (!isLoaded || !signIn) return;
+
+    const trimmed = idToUse.trim();
+    if (trimmed.length < 3) { setError("Enter your email or employee ID."); return; }
+    if (passToUse.length < 8) { setError("Password must be at least 8 characters."); return; }
 
     setError(null);
     setSubmitting(true);
 
-    const candidates = [trimmedIdentifier];
-    if (!trimmedIdentifier.includes("@")) {
-      candidates.push(`${trimmedIdentifier}@example.com`);
-      candidates.push(`${trimmedIdentifier.replace(/_/g, ".")}@example.com`);
+    // Try the identifier as-is first
+    let result = await attemptSignIn(trimmed, passToUse);
+    if (result === "ok") return;
+
+    // If not found and looks like a username (no @), try appending @example.com
+    if (result === "not_found" && !trimmed.includes("@")) {
+      result = await attemptSignIn(`${trimmed}@example.com`, passToUse);
+      if (result === "ok") return;
     }
 
-    let lastErr: unknown;
-    for (const id of candidates) {
-      try {
-        let result = await signIn.create({ identifier: id, password: passToUse });
-        if (result.status === "needs_first_factor") {
-          result = await signIn.attemptFirstFactor({
-            strategy: "password",
-            password: passToUse,
-          });
-        }
-        if (result.status === "complete") {
-          await setActive({ session: result.createdSessionId });
-          window.location.assign(next ?? "/post-sign-in");
-          return;
-        }
-      } catch (err: unknown) {
-        const clerkErr = err as { errors?: { code?: string; message?: string }[] };
-        const code = clerkErr?.errors?.[0]?.code;
-        if (code === "identifier_already_set" || code === "session_exists") {
-          try {
-            const factorRes = await signIn.attemptFirstFactor({
-              strategy: "password",
-              password: passToUse,
-            });
-            if (factorRes.status === "complete") {
-              await setActive({ session: factorRes.createdSessionId });
-              window.location.assign(next ?? "/post-sign-in");
-              return;
-            }
-          } catch (factorErr) {
-            lastErr = factorErr;
-          }
-        } else {
-          lastErr = err;
-        }
-      }
-    }
-
-    if (lastErr) {
-      setError(authErrorMessage(lastErr));
-    } else {
-      setError("Incorrect email/employee ID or password.");
-    }
+    setError(result === "not_found" ? "No account found. Check the email and try again." : result);
     setSubmitting(false);
   };
 
@@ -98,10 +83,37 @@ export function SignInForm() {
     handleLogin(identifier, password);
   };
 
-  const fillAndLogin = (demoEmail: string, demoPass: string) => {
+  const fillAndLogin = async (demoRole: "resident" | "worker" | "admin", demoEmail: string) => {
+    if (!isLoaded || !signIn) return;
     setIdentifier(demoEmail);
-    setPassword(demoPass);
-    handleLogin(demoEmail, demoPass);
+    setPassword("••••••••••••••••");
+    setError(null);
+    setSubmitting(true);
+    try {
+      try { await signOut(); } catch { /* ignore if no session */ }
+      const res = await fetch("/api/auth/demo-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: demoRole }),
+      });
+      const data = await res.json() as { token?: string; error?: string };
+      if (!res.ok || !data.token) {
+        setError(data.error ?? "Could not create demo session.");
+        setSubmitting(false);
+        return;
+      }
+      const result = await signIn.create({ strategy: "ticket", ticket: data.token });
+      if (result.status === "complete") {
+        await setActive!({ session: result.createdSessionId });
+        window.location.href = next ?? "/post-sign-in";
+        return;
+      }
+      setError("Demo sign-in incomplete — try again.");
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: { longMessage?: string; message?: string }[] };
+      setError(clerkErr?.errors?.[0]?.longMessage ?? clerkErr?.errors?.[0]?.message ?? "Demo login failed.");
+    }
+    setSubmitting(false);
   };
 
   return (
@@ -163,6 +175,7 @@ export function SignInForm() {
             </p>
           ) : null}
 
+          <div id="clerk-captcha" />
           <Button type="submit" block disabled={submitting || !isLoaded}>
             {submitting ? "Signing in…" : "Sign in"}
           </Button>
@@ -198,7 +211,7 @@ export function SignInForm() {
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <button
                 type="button"
-                onClick={() => fillAndLogin("resident_demo@example.com", "CivicFixDemo!2026")}
+                onClick={() => fillAndLogin("resident", "resident_demo@example.com")}
                 disabled={submitting}
                 style={{
                   display: "flex",
@@ -220,7 +233,7 @@ export function SignInForm() {
 
               <button
                 type="button"
-                onClick={() => fillAndLogin("worker_demo@example.com", "CivicFixDemo!2026")}
+                onClick={() => fillAndLogin("worker", "worker_demo@example.com")}
                 disabled={submitting}
                 style={{
                   display: "flex",
@@ -242,7 +255,7 @@ export function SignInForm() {
 
               <button
                 type="button"
-                onClick={() => fillAndLogin("civicfix_admin_demo@example.com", "CivicFixDemo!2026")}
+                onClick={() => fillAndLogin("admin", "civicfix_admin_demo@example.com")}
                 disabled={submitting}
                 style={{
                   display: "flex",

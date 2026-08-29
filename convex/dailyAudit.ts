@@ -1,11 +1,14 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
-import { requireRole } from "./lib/auth";
+import { getRoles, getViewer, requireRole } from "./lib/auth";
 
 export const latest = query({
   args: {},
   handler: async (ctx) => {
-    await requireRole(ctx, ["department_manager", "administrator", "auditor"]);
+    const user = await getViewer(ctx);
+    if (!user) return null;
+    const roles = await getRoles(ctx, user._id);
+    if (!roles.some((r) => ["department_manager", "administrator", "auditor"].includes(r))) return null;
     const runs = await ctx.db.query("dailyAuditRuns").withIndex("by_run_time").collect();
     runs.sort((a, b) => b.runAt - a.runAt);
     return runs[0] ?? null;

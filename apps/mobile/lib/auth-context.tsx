@@ -154,18 +154,44 @@ function ClerkAuthProvider({ children }: PropsWithChildren) {
       signIn: async (identifier, password) => {
         if (!signInLoaded || !signIn) return { error: "Not ready yet — try again in a moment." };
 
-        let emailOrUsername = identifier.trim();
-
-        try {
-          const result = await signIn.create({ identifier: emailOrUsername, password });
-          if (result.status !== "complete") {
-            return { error: "Additional verification is required for this account." };
-          }
-          await setActiveSignIn({ session: result.createdSessionId });
-          return { error: null };
-        } catch (err) {
-          return { error: authErrorMessage(err) };
+        const trimmed = identifier.trim();
+        const candidates = [trimmed];
+        if (!trimmed.includes("@")) {
+          candidates.push(`${trimmed}@example.com`);
+          candidates.push(`${trimmed.replace(/_/g, ".")}@example.com`);
         }
+
+        let lastErr: unknown;
+        for (const id of candidates) {
+          try {
+            let result = await signIn.create({ identifier: id, password });
+            if (result.status === "needs_first_factor") {
+              result = await signIn.attemptFirstFactor({ strategy: "password", password });
+            }
+            if (result.status === "complete") {
+              await setActiveSignIn({ session: result.createdSessionId });
+              return { error: null };
+            }
+          } catch (err: unknown) {
+            const clerkErr = err as { errors?: { code?: string; message?: string }[] };
+            const code = clerkErr?.errors?.[0]?.code;
+            if (code === "identifier_already_set" || code === "session_exists") {
+              try {
+                const factorRes = await signIn.attemptFirstFactor({ strategy: "password", password });
+                if (factorRes.status === "complete") {
+                  await setActiveSignIn({ session: factorRes.createdSessionId });
+                  return { error: null };
+                }
+              } catch (factorErr) {
+                lastErr = factorErr;
+              }
+            } else {
+              lastErr = err;
+            }
+          }
+        }
+
+        return { error: lastErr ? authErrorMessage(lastErr) : "Incorrect email or password." };
       },
       signUp: async (email, password, fullName) => {
         if (!signUpLoaded || !signUp) {

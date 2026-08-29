@@ -2,7 +2,7 @@ import { paginationOptsValidator } from "convex/server";
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { isStaff, requireRole, requireUser } from "./lib/auth";
+import { getRoles, getViewer, isStaff, requireRole, requireUser } from "./lib/auth";
 
 const CATEGORY = v.union(v.literal("pothole"), v.literal("garbage"), v.literal("streetlight"), v.literal("other"));
 const SEVERITY = v.union(v.literal("low"), v.literal("medium"), v.literal("high"), v.literal("critical"));
@@ -460,7 +460,10 @@ export const updateStatus = mutation({
 export const listFalseReportQueue = query({
   args: {},
   handler: async (ctx) => {
-    await requireRole(ctx, ["administrator"]);
+    const user = await getViewer(ctx);
+    if (!user) return [];
+    const roles = await getRoles(ctx, user._id);
+    if (!roles.includes("administrator")) return [];
     const all = await ctx.db.query("issues").collect();
     return all.filter((i) => i.falseReportStatus === "under_review");
   },

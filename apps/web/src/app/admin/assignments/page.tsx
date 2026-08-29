@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import Link from "next/link";
 
 import { Badge, Button, Card } from "@civicfix/ui-web";
 
@@ -10,6 +11,8 @@ import { CATEGORY_LABEL } from "@/lib/status";
 import type { AssignmentStatus } from "@/lib/types";
 
 import { api } from "@convex/_generated/api";
+import type { Doc, Id } from "@convex/_generated/dataModel";
+import { CompleteTaskModal } from "./CompleteTaskModal";
 import { RoutePlanner } from "./RoutePlanner";
 
 import styles from "../admin.module.css";
@@ -22,7 +25,14 @@ const COLUMNS: { key: AssignmentStatus; label: string }[] = [
 
 export default function AssignmentBoardPage() {
   const [viewMode, setViewMode] = useState<"kanban" | "route">("kanban");
+  const [activeModalTask, setActiveModalTask] = useState<{
+    issue: Doc<"issues">;
+    assignmentId?: Id<"assignments">;
+  } | null>(null);
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+
   const assignments = useQuery(api.assignments.listAll, {});
+  const updateStatus = useMutation(api.issues.updateStatus);
 
   const relevant = (assignments ?? [])
     .filter((a) => a.issue && ASSIGNMENT_STATUS_BY_ISSUE_STATUS[a.issue.status])
@@ -38,13 +48,24 @@ export default function AssignmentBoardPage() {
       dueAt: a.dueAt,
     }));
 
+  const handleStartWork = async (issueId: Id<"issues">) => {
+    setActionBusyId(issueId);
+    try {
+      await updateStatus({ issueId, nextStatus: "in_progress", note: "Worker started task." });
+    } catch (err) {
+      console.error("Failed to start work:", err);
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
   return (
     <div>
       <div className={styles.pageHeader}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: "var(--space-3)" }}>
           <div>
             <h1 className={styles.title}>Assignment board</h1>
-            <p className={styles.subtitle}>Field-worker workload and intelligent route optimization.</p>
+            <p className={styles.subtitle}>Field-worker workload, task execution, and intelligent route optimization.</p>
           </div>
 
           <div style={{ display: "flex", gap: "var(--space-2)" }}>
@@ -79,19 +100,66 @@ export default function AssignmentBoardPage() {
                 <p className={styles.kanbanColumnTitle}>
                   {column.label} ({items.length})
                 </p>
-                {items.map((assignment) => (
-                  <Card key={assignment._id}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <strong>{assignment.issue!.trackingId}</strong>
-                      <Badge tone="info">{CATEGORY_LABEL[assignment.issue!.category]}</Badge>
-                    </div>
-                    <p style={{ margin: 0, fontSize: "var(--font-size-sm)" }}>{assignment.issue!.description}</p>
-                    <p style={{ margin: 0, fontSize: "var(--font-size-xs)", color: "var(--color-muted-foreground)" }}>
-                      {assignment.workerName}
-                      {assignment.dueAt ? ` · Due ${new Date(assignment.dueAt).toLocaleDateString()}` : ""}
-                    </p>
-                  </Card>
-                ))}
+                {items.map((assignment) => {
+                  const issue = assignment.issue!;
+                  const isAssigned = issue.status === "assigned";
+                  const isInProgress = issue.status === "in_progress";
+                  const isPendingVerif = issue.status === "pending_verification";
+                  const isBusy = actionBusyId === issue._id;
+
+                  return (
+                    <Card key={assignment._id} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <strong>{issue.trackingId}</strong>
+                        <Badge tone={isPendingVerif ? "success" : isInProgress ? "info" : "neutral"}>
+                          {CATEGORY_LABEL[issue.category]}
+                        </Badge>
+                      </div>
+                      <p style={{ margin: 0, fontSize: "var(--font-size-sm)", lineHeight: 1.4 }}>
+                        {issue.description}
+                      </p>
+                      <div style={{ fontSize: "var(--font-size-xs)", color: "var(--color-muted-foreground)", display: "flex", justifyContent: "space-between" }}>
+                        <span>👤 {assignment.workerName}</span>
+                        {assignment.dueAt ? <span>Due {new Date(assignment.dueAt).toLocaleDateString()}</span> : null}
+                      </div>
+
+                      <div style={{ paddingTop: "6px", borderTop: "1px dashed var(--color-border, #333)", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                        {isAssigned ? (
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleStartWork(issue._id)}
+                            disabled={isBusy}
+                            style={{ flex: 1, fontSize: "12px", padding: "4px 8px" }}
+                          >
+                            {isBusy ? "Starting…" : "▶ Start Working"}
+                          </Button>
+                        ) : null}
+
+                        {isAssigned || isInProgress ? (
+                          <Button
+                            variant="primary"
+                            onClick={() => setActiveModalTask({ issue, assignmentId: assignment._id })}
+                            disabled={isBusy}
+                            style={{ flex: 1, fontSize: "12px", padding: "4px 8px" }}
+                          >
+                            📸 Complete & Submit Evidence
+                          </Button>
+                        ) : null}
+
+                        {isPendingVerif ? (
+                          <Link href="/admin/community" style={{ width: "100%" }}>
+                            <Button
+                              variant="secondary"
+                              style={{ width: "100%", fontSize: "12px", padding: "4px 8px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", border: "1px solid #10b981" }}
+                            >
+                              🗳️ View in Community Votes →
+                            </Button>
+                          </Link>
+                        ) : null}
+                      </div>
+                    </Card>
+                  );
+                })}
                 {items.length === 0 ? (
                   <p style={{ fontSize: "var(--font-size-sm)", color: "var(--color-muted-foreground)" }}>Nothing here.</p>
                 ) : null}
@@ -100,6 +168,14 @@ export default function AssignmentBoardPage() {
           })}
         </div>
       )}
+
+      {activeModalTask ? (
+        <CompleteTaskModal
+          issue={activeModalTask.issue}
+          assignmentId={activeModalTask.assignmentId}
+          onClose={() => setActiveModalTask(null)}
+        />
+      ) : null}
     </div>
   );
 }

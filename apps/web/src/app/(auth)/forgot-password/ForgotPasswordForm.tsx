@@ -162,9 +162,15 @@ export function ForgotPasswordForm() {
           {error ? (
             <p className={styles.errorText} role="alert">
               {error}
+              {error.toLowerCase().includes("breach") || error.toLowerCase().includes("pwned") ? (
+                <span style={{ display: "block", marginTop: 4, fontSize: "0.8em", opacity: 0.8 }}>
+                  Use a unique password not used on other sites.
+                </span>
+              ) : null}
             </p>
           ) : null}
 
+          <div id="clerk-captcha" />
           <Button type="submit" block disabled={submitting || !isLoaded}>
             {submitting ? "Please wait…" : step === "request" ? "Send reset code" : "Set new password"}
           </Button>

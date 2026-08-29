@@ -1,12 +1,13 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
-import { requireUser } from "./lib/auth";
+import { getViewer, requireUser } from "./lib/auth";
 
 export const listMine = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
+    const user = await getViewer(ctx);
+    if (!user) return [];
     const limit = args.limit ?? 50;
     const rows = await ctx.db
       .query("notifications")
@@ -20,7 +21,10 @@ export const listMine = query({
 export const paginateMine = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
+    const user = await getViewer(ctx);
+    if (!user) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
     return await ctx.db
       .query("notifications")
       .withIndex("by_user_and_created", (q) => q.eq("userId", user._id))
@@ -32,7 +36,8 @@ export const paginateMine = query({
 export const unreadCount = query({
   args: {},
   handler: async (ctx) => {
-    const user = await requireUser(ctx);
+    const user = await getViewer(ctx);
+    if (!user) return 0;
     const rows = await ctx.db
       .query("notifications")
       .withIndex("by_user_and_read", (q) => q.eq("userId", user._id).eq("readAt", undefined))
@@ -115,7 +120,15 @@ export const removeInvalidDeviceTokenInternal = internalMutation({
 export const getPreferences = query({
   args: {},
   handler: async (ctx) => {
-    const user = await requireUser(ctx);
+    const user = await getViewer(ctx);
+    if (!user) {
+      return {
+        pushEnabled: true,
+        statusUpdates: true,
+        chatMessages: true,
+        communityAlerts: true,
+      };
+    }
     const prefs = await ctx.db
       .query("notificationPreferences")
       .withIndex("by_user", (q) => q.eq("userId", user._id))

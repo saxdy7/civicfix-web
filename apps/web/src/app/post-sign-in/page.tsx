@@ -18,7 +18,7 @@ export default async function PostSignInPage() {
   );
 
   const session = await getSessionProfile();
-  const isDeskStaff = session?.roles.some((r) => ["department_manager", "administrator", "auditor"].includes(r));
+  const isDeskStaff = session?.roles.some((r) => ["field_worker", "department_manager", "administrator", "auditor"].includes(r));
 
   redirect(isDeskStaff ? "/admin" : "/app");
 }

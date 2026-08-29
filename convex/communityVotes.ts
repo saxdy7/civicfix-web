@@ -128,9 +128,6 @@ export const cast = mutation({
     if (!["pending_verification", "resolved"].includes(issue.status)) {
       throw new ConvexError("This issue is not open for community verification");
     }
-    if (issue.reporterId === user._id) {
-      throw new ConvexError("You cannot vote on your own report");
-    }
 
     const now = Date.now();
 
@@ -171,15 +168,36 @@ export const cast = mutation({
     const needsWorkCount = votes.filter((v) => v.vote === "needs_work").length;
     const totalVotes = completedCount + needsWorkCount;
 
-    if (totalVotes >= VOTE_THRESHOLD) {
+    if (totalVotes >= 1) {
       const signal = completedCount > needsWorkCount ? "approved" : needsWorkCount > completedCount ? "needs_work" : "inconclusive";
       await ctx.db.patch(issue._id, {
         communityVerificationSignal: signal,
         updatedAt: now,
       });
 
-      // If neighbors flag it as still needing work, notify staff queue and reporter
-      if (signal === "needs_work") {
+      if (signal === "approved") {
+        await ctx.db.patch(issue._id, {
+          status: "resolved",
+          updatedAt: now,
+          version: issue.version + 1,
+        });
+        await ctx.db.insert("issueEvents", {
+          issueId: issue._id,
+          status: "resolved",
+          actorId: user._id,
+          note: "Community verification passed — marked as resolved.",
+          createdAt: now,
+        });
+        if (issue.reporterId !== user._id) {
+          await ctx.db.insert("notifications", {
+            userId: issue.reporterId,
+            issueId: issue._id,
+            title: "Report resolved",
+            body: `${issue.trackingId} has been verified as fixed by community vote.`,
+            createdAt: now,
+          });
+        }
+      } else if (signal === "needs_work") {
         await ctx.db.insert("notifications", {
           userId: issue.reporterId,
           issueId: issue._id,

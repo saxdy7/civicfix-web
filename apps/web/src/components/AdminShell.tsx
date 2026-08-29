@@ -79,7 +79,7 @@ export function AdminShell({
   const NAV_GROUPS = buildNavGroups(isAdmin);
   const { theme, toggleTheme } = useDashboardTheme();
 
-  const pendingRequests = useQuery(api.staffAccessRequests.list, {});
+  const pendingRequests = useQuery(api.staffAccessRequests.list, isAdmin ? {} : "skip");
   const pendingCount = isAdmin ? (pendingRequests ?? []).filter((r) => r.status === "pending").length : 0;
 
   return (

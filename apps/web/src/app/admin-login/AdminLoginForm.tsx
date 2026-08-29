@@ -1,6 +1,6 @@
 "use client";
 
-import { useSignIn } from "@clerk/nextjs";
+import { useClerk, useSignIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -18,68 +18,61 @@ export function AdminLoginForm() {
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
   const { isLoaded, signIn, setActive } = useSignIn();
+  const { signOut } = useClerk();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const attemptSignIn = async (id: string, pass: string): Promise<"ok" | "not_found" | string> => {
+    try {
+      try { await signOut(); } catch { /* ignore */ }
+      const created = await signIn!.create({ identifier: id, password: pass });
+      if (created.status === "complete") {
+        await setActive!({ session: created.createdSessionId });
+        window.location.href = next ?? "/admin";
+        return "ok";
+      }
+      if (created.status === "needs_first_factor") {
+        const factor = await signIn!.attemptFirstFactor({ strategy: "password", password: pass });
+        if (factor.status === "complete") {
+          await setActive!({ session: factor.createdSessionId });
+          window.location.href = next ?? "/admin";
+          return "ok";
+        }
+      }
+      return "Sign-in incomplete. Please try again.";
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: { code?: string; longMessage?: string; message?: string }[] };
+      const code = clerkErr?.errors?.[0]?.code ?? "";
+      const msg = clerkErr?.errors?.[0]?.longMessage ?? clerkErr?.errors?.[0]?.message ?? "Sign-in failed.";
+      if (code === "form_identifier_not_found") return "not_found";
+      return msg;
+    }
+  };
+
   const handleLogin = async (userToUse: string, passToUse: string) => {
-    if (!isLoaded) return;
+    if (!isLoaded || !signIn) return;
 
     const trimmed = userToUse.trim();
-    if (trimmed.length < 3) return setError("Enter your administrator username.");
-    if (passToUse.length < 8) return setError("Enter your password.");
+    if (trimmed.length < 3) { setError("Enter your administrator username."); return; }
+    if (passToUse.length < 8) { setError("Enter your password."); return; }
 
     setError(null);
     setSubmitting(true);
 
-    const candidates = [trimmed];
-    if (!trimmed.includes("@")) {
-      candidates.push(`${trimmed}@example.com`);
-      candidates.push(`${trimmed.replace(/_/g, ".")}@example.com`);
+    // Try as-is first (works if full email entered)
+    let result = await attemptSignIn(trimmed, passToUse);
+    if (result === "ok") return;
+
+    // If not found and no @, try appending @example.com (username mode)
+    if (result === "not_found" && !trimmed.includes("@")) {
+      result = await attemptSignIn(`${trimmed}@example.com`, passToUse);
+      if (result === "ok") return;
     }
 
-    let lastErr: unknown;
-    for (const id of candidates) {
-      try {
-        let result = await signIn.create({ identifier: id, password: passToUse });
-        if (result.status === "needs_first_factor") {
-          result = await signIn.attemptFirstFactor({
-            strategy: "password",
-            password: passToUse,
-          });
-        }
-        if (result.status === "complete") {
-          await setActive({ session: result.createdSessionId });
-          window.location.assign(next ?? "/admin");
-          return;
-        }
-      } catch (err: unknown) {
-        const clerkErr = err as { errors?: { code?: string; message?: string }[] };
-        const code = clerkErr?.errors?.[0]?.code;
-        if (code === "identifier_already_set" || code === "session_exists") {
-          try {
-            const factorRes = await signIn.attemptFirstFactor({
-              strategy: "password",
-              password: passToUse,
-            });
-            if (factorRes.status === "complete") {
-              await setActive({ session: factorRes.createdSessionId });
-              window.location.assign(next ?? "/admin");
-              return;
-            }
-          } catch (factorErr) {
-            lastErr = factorErr;
-          }
-        } else {
-          lastErr = err;
-        }
-      }
-    }
-
-    const clerkErr = lastErr as { errors?: { message?: string }[] };
-    setError(clerkErr?.errors?.[0]?.message ?? "Incorrect username or password.");
+    setError(result === "not_found" ? "No admin account found with that username." : result);
     setSubmitting(false);
   };
 
@@ -88,10 +81,37 @@ export function AdminLoginForm() {
     handleLogin(username, password);
   };
 
-  const fillAndLoginAdmin = () => {
+  const fillAndLoginAdmin = async () => {
+    if (!isLoaded || !signIn) return;
     setUsername("civicfix_admin_demo");
-    setPassword("CivicFixDemo!2026");
-    handleLogin("civicfix_admin_demo", "CivicFixDemo!2026");
+    setPassword("••••••••••••••••");
+    setError(null);
+    setSubmitting(true);
+    try {
+      try { await signOut(); } catch { /* ignore */ }
+      const res = await fetch("/api/auth/demo-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "admin" }),
+      });
+      const data = await res.json() as { token?: string; error?: string };
+      if (!res.ok || !data.token) {
+        setError(data.error ?? "Could not create demo session.");
+        setSubmitting(false);
+        return;
+      }
+      const result = await signIn.create({ strategy: "ticket", ticket: data.token });
+      if (result.status === "complete") {
+        await setActive!({ session: result.createdSessionId });
+        window.location.href = next ?? "/admin";
+        return;
+      }
+      setError("Demo sign-in incomplete — try again.");
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: { longMessage?: string; message?: string }[] };
+      setError(clerkErr?.errors?.[0]?.longMessage ?? clerkErr?.errors?.[0]?.message ?? "Demo login failed.");
+    }
+    setSubmitting(false);
   };
 
   return (
@@ -146,6 +166,7 @@ export function AdminLoginForm() {
         </p>
       ) : null}
 
+      <div id="clerk-captcha" />
       <Button type="submit" block disabled={submitting || !isLoaded}>
         {submitting ? "Signing in…" : "Sign in"}
       </Button>
