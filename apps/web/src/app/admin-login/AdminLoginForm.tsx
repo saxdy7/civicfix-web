@@ -10,13 +10,6 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 import styles from "./admin-login.module.css";
 
-// UIDs are a convention, not a real mailbox — this suffix must match
-// scripts/seed-admin.mjs exactly. It exists so administrators sign in with a
-// short internal identifier instead of a real email address, without adding
-// a second identity system: underneath, it's still ordinary Supabase Auth
-// email/password.
-const ADMIN_EMAIL_SUFFIX = "@local.test";
-
 function safeNextPath(value: string | null): string | null {
   if (!value || !value.startsWith("/admin")) return null;
   return value;
@@ -26,7 +19,7 @@ export function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
-  const [uid, setUid] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -34,8 +27,7 @@ export function AdminLoginForm() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    const trimmedUid = uid.trim().toLowerCase();
-    if (trimmedUid.length < 3) return setError("Enter your administrator UID.");
+    if (!email.includes("@")) return setError("Enter a valid email address.");
     if (password.length < 8) return setError("Enter your password.");
 
     setError(null);
@@ -48,12 +40,12 @@ export function AdminLoginForm() {
     }
 
     const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: `${trimmedUid}${ADMIN_EMAIL_SUFFIX}`,
+      email: email.trim(),
       password,
     });
 
     if (signInError) {
-      setError("Incorrect UID or password.");
+      setError("Incorrect email or password.");
       setSubmitting(false);
       return;
     }
@@ -93,17 +85,19 @@ export function AdminLoginForm() {
       </div>
 
       <div className={styles.field}>
-        <label className={styles.label} htmlFor="uid">
-          Admin UID
+        <label className={styles.label} htmlFor="email">
+          Email
         </label>
         <input
-          id="uid"
+          id="email"
+          type="email"
           className={styles.input}
-          placeholder="e.g. civicfix.admin.demo"
+          placeholder="admin@civicfix.demo"
           autoCapitalize="none"
           autoCorrect="off"
-          value={uid}
-          onChange={(e) => setUid(e.target.value)}
+          autoComplete="username"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
         />
       </div>
 
@@ -140,8 +134,11 @@ export function AdminLoginForm() {
         <p className={styles.demoHint}>No Supabase credentials configured — admin sign-in is disabled.</p>
       ) : (
         <p className={styles.demoHint}>
-          Local/demo account only — provision it with <code>node scripts/seed-admin.mjs</code>. Never deploy
-          demo credentials to production.
+          Demo account (provision it first with <code>node scripts/seed-admin.mjs</code>):
+          <br />
+          Email: <code>admin@civicfix.demo</code> · Password: <code>CivicFixDemo!2026</code>
+          <br />
+          Development/hackathon demo only — never deploy these credentials to production.
         </p>
       )}
     </form>

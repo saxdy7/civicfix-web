@@ -30,7 +30,8 @@ interface AuthContextValue {
   user: CurrentUser | null;
   /** True while the initial session/profile lookup is still in flight. */
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  /** `identifier` may be an email or a staff employee ID — resolved to an email before signing in. */
+  signIn: (identifier: string, password: string) => Promise<{ error: string | null }>;
   signUp: (
     email: string,
     password: string,
@@ -142,8 +143,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     () => ({
       user,
       loading,
-      signIn: async (email, password) => {
+      signIn: async (identifier, password) => {
         if (!supabase) return { error: "Supabase is not configured." };
+
+        let email = identifier.trim();
+        if (!email.includes("@")) {
+          const { data: resolved } = await supabase.rpc("resolve_login_email", { p_identifier: email });
+          if (!resolved) return { error: "Incorrect email/employee ID or password." };
+          email = resolved;
+        }
+
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return { error: error ? authErrorMessage(error) : null };
       },

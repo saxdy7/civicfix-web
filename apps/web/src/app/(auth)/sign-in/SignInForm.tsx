@@ -20,7 +20,7 @@ export function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +29,8 @@ export function SignInForm() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (!email.includes("@")) return setError("Enter a valid email address.");
+    const trimmedIdentifier = identifier.trim();
+    if (trimmedIdentifier.length < 3) return setError("Enter your email or employee ID.");
     if (password.length < 8) return setError("Password must be at least 8 characters.");
 
     setError(null);
@@ -39,6 +40,22 @@ export function SignInForm() {
       // Preview mode — no credentials configured. Residents are the default.
       router.push(next ?? "/app");
       return;
+    }
+
+    // A staff member may log in with their employee ID instead of their
+    // email — resolve it first (Supabase Auth itself only signs in by
+    // email). A plain email skips the lookup entirely.
+    let email = trimmedIdentifier;
+    if (!trimmedIdentifier.includes("@")) {
+      const { data: resolved } = await supabase.rpc("resolve_login_email", {
+        p_identifier: trimmedIdentifier,
+      });
+      if (!resolved) {
+        setError("Incorrect email/employee ID or password.");
+        setSubmitting(false);
+        return;
+      }
+      email = resolved;
     }
 
     const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -90,17 +107,16 @@ export function SignInForm() {
           </div>
 
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="email">
-              Email
+            <label className={styles.label} htmlFor="identifier">
+              Email or employee ID
             </label>
             <input
-              id="email"
-              type="email"
+              id="identifier"
               className={styles.input}
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+              placeholder="you@example.com or SR-40912"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              autoComplete="username"
             />
           </div>
 

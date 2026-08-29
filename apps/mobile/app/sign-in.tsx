@@ -24,7 +24,9 @@ export default function SignIn() {
 
   if (user) return <Redirect href="/(tabs)" />;
 
-  const canSubmit = email.includes("@") && password.length >= 8 && (mode === "sign-in" || name.trim().length >= 2);
+  // Sign-in accepts an employee ID as well as an email; sign-up always needs a real email.
+  const identifierValid = mode === "sign-in" ? email.trim().length >= 3 : email.includes("@");
+  const canSubmit = identifierValid && password.length >= 8 && (mode === "sign-in" || name.trim().length >= 2);
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -79,11 +81,11 @@ export default function SignIn() {
           ) : null}
 
           <TextField
-            label="Email"
-            placeholder="you@example.com"
+            label={mode === "sign-in" ? "Email or employee ID" : "Email"}
+            placeholder={mode === "sign-in" ? "you@example.com or SR-40912" : "you@example.com"}
             autoCapitalize="none"
             autoComplete="email"
-            keyboardType="email-address"
+            keyboardType={mode === "sign-in" ? "default" : "email-address"}
             value={email}
             onChangeText={setEmail}
           />

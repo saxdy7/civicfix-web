@@ -14,23 +14,21 @@
 //   node scripts/seed-admin.mjs
 //
 // Optional overrides (defaults match the documented hackathon-demo account):
-//   ADMIN_UID=civicfix.admin.demo
+//   ADMIN_EMAIL=admin@civicfix.demo
 //   ADMIN_PASSWORD=CivicFixDemo!2026
 //   ADMIN_FULL_NAME="CivicFix Demo Administrator"
 //
-// The "UID" is a convention, not a real email: the admin login screen
-// (apps/web/src/app/admin/login) takes a UID and internally signs in as
-// `${uid}@local.test`. That suffix is fixed and must match
-// apps/web/src/app/admin/login/AdminLoginForm.tsx exactly.
+// Admin sign-in (apps/web/src/app/admin-login) is a plain real email +
+// password, same as every other account — just gated to a separate page and
+// checked against the `administrator` role after sign-in.
 
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const ADMIN_UID = process.env.ADMIN_UID ?? "civicfix.admin.demo";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@civicfix.demo";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "CivicFixDemo!2026";
 const ADMIN_FULL_NAME = process.env.ADMIN_FULL_NAME ?? "CivicFix Demo Administrator";
-const ADMIN_EMAIL = `${ADMIN_UID}@local.test`;
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error(
@@ -55,7 +53,7 @@ async function findUserByEmail(email) {
 }
 
 async function main() {
-  console.log(`Seeding demo administrator: UID "${ADMIN_UID}" -> ${ADMIN_EMAIL}`);
+  console.log(`Seeding demo administrator: ${ADMIN_EMAIL}`);
 
   let user = await findUserByEmail(ADMIN_EMAIL);
 
@@ -83,9 +81,9 @@ async function main() {
     .upsert({ user_id: user.id, role: "administrator" }, { onConflict: "user_id,role" });
   if (roleError) throw roleError;
 
-  console.log("Done. Sign in at /admin/login with:");
-  console.log(`  Admin UID: ${ADMIN_UID}`);
-  console.log(`  Password:  ${ADMIN_PASSWORD}`);
+  console.log("Done. Sign in at /admin-login with:");
+  console.log(`  Email:    ${ADMIN_EMAIL}`);
+  console.log(`  Password: ${ADMIN_PASSWORD}`);
   console.log("This is a development/hackathon-demo account — rotate or remove it before any real deployment.");
 }
 
