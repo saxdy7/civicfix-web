@@ -1,9 +1,17 @@
+// Used ONLY when EXPO_PUBLIC_SUPABASE_URL/ANON_KEY are absent (see
+// lib/supabase.ts `isSupabaseConfigured`). Every repository function checks
+// that flag and falls back to these fixtures instead of querying Supabase —
+// they exist so the app is still explorable with zero configuration, never
+// as a silent substitute for a failed real query. components/DemoBanner.tsx
+// keeps this visibly labelled wherever it's shown, and tracking IDs are
+// prefixed "DEMO-" (never "CF-") so a demo report can't be mistaken for a
+// real one.
 import type { AppNotification, Assignment, Issue } from "./types";
 
-export const MOCK_ISSUES: Issue[] = [
+export const DEMO_ISSUES: Issue[] = [
   {
-    id: "iss-1",
-    trackingId: "CF-10234",
+    id: "demo-iss-1",
+    trackingId: "DEMO-10234",
     category: "pothole",
     status: "in_progress",
     severity: "high",
@@ -21,8 +29,8 @@ export const MOCK_ISSUES: Issue[] = [
     ],
   },
   {
-    id: "iss-2",
-    trackingId: "CF-10198",
+    id: "demo-iss-2",
+    trackingId: "DEMO-10198",
     category: "garbage",
     status: "pending_verification",
     severity: "medium",
@@ -41,8 +49,8 @@ export const MOCK_ISSUES: Issue[] = [
     ],
   },
   {
-    id: "iss-3",
-    trackingId: "CF-10256",
+    id: "demo-iss-3",
+    trackingId: "DEMO-10256",
     category: "streetlight",
     status: "reported",
     severity: "medium",
@@ -54,85 +62,50 @@ export const MOCK_ISSUES: Issue[] = [
     updatedAt: "2026-08-26T20:00:00Z",
     events: [{ id: "e1", status: "reported", createdAt: "2026-08-26T20:00:00Z" }],
   },
-  {
-    id: "iss-4",
-    trackingId: "CF-10061",
-    category: "pothole",
-    status: "resolved",
-    severity: "low",
-    description: "Small pothole near the bike lane, patched by crew.",
-    neighborhood: "Maple & 5th",
-    latitude: 37.7755,
-    longitude: -122.418,
-    createdAt: "2026-08-02T09:00:00Z",
-    updatedAt: "2026-08-10T13:00:00Z",
-    events: [
-      { id: "e1", status: "reported", createdAt: "2026-08-02T09:00:00Z" },
-      { id: "e2", status: "triaged", createdAt: "2026-08-03T09:00:00Z" },
-      { id: "e3", status: "assigned", createdAt: "2026-08-04T09:00:00Z" },
-      { id: "e4", status: "in_progress", createdAt: "2026-08-08T09:00:00Z" },
-      { id: "e5", status: "pending_verification", createdAt: "2026-08-09T09:00:00Z" },
-      { id: "e6", status: "resolved", note: "Verified by administrator.", createdAt: "2026-08-10T13:00:00Z" },
-    ],
-  },
 ];
 
-export const MOCK_ASSIGNMENTS: Assignment[] = [
+export const DEMO_ASSIGNMENTS: Assignment[] = [
   {
-    id: "asg-1",
-    issueId: "iss-1",
+    id: "demo-asg-1",
+    issueId: "demo-iss-1",
     issueSummary: "Deep pothole near Maple & 5th",
     category: "pothole",
     neighborhood: "Maple & 5th",
+    latitude: 37.7749,
+    longitude: -122.4194,
     status: "in_progress",
     dueAt: "2026-08-29T18:00:00Z",
     beforePhotoCaptured: true,
     afterPhotoCaptured: false,
   },
   {
-    id: "asg-2",
-    issueId: "iss-2",
+    id: "demo-asg-2",
+    issueId: "demo-iss-2",
     issueSummary: "Overflowing dumpster at Riverside Park",
     category: "garbage",
     neighborhood: "Riverside Park",
+    latitude: 37.769,
+    longitude: -122.4102,
     status: "pending_verification",
     dueAt: "2026-08-25T18:00:00Z",
     beforePhotoCaptured: true,
     afterPhotoCaptured: true,
   },
-  {
-    id: "asg-3",
-    issueId: "iss-3",
-    issueSummary: "Flickering streetlight on Oak Hill",
-    category: "streetlight",
-    neighborhood: "Oak Hill",
-    status: "assigned",
-    dueAt: "2026-08-31T18:00:00Z",
-    beforePhotoCaptured: false,
-    afterPhotoCaptured: false,
-  },
 ];
 
-export const MOCK_NOTIFICATIONS: AppNotification[] = [
+export const DEMO_NOTIFICATIONS: AppNotification[] = [
   {
-    id: "n1",
+    id: "demo-n1",
     title: "Evidence submitted",
-    body: "Your report CF-10198 evidence is pending administrator verification.",
+    body: "Your report DEMO-10198 evidence is pending administrator verification.",
     createdAt: "2026-08-24T16:41:00Z",
     read: false,
   },
   {
-    id: "n2",
+    id: "demo-n2",
     title: "Work started",
-    body: "A crew has started work on your report CF-10234.",
+    body: "A crew has started work on your report DEMO-10234.",
     createdAt: "2026-08-25T09:01:00Z",
     read: false,
-  },
-  {
-    id: "n3",
-    title: "Report resolved",
-    body: "Your report CF-10061 was verified and marked resolved.",
-    createdAt: "2026-08-10T13:01:00Z",
-    read: true,
   },
 ];

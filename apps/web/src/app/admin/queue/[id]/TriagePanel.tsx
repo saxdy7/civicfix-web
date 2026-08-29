@@ -101,28 +101,11 @@ export function TriagePanel({
     setDupBusy(true);
     setDupError(null);
     try {
-      const { data: target, error: findError } = await supabase
-        .from("issues")
-        .select("id")
-        .eq("tracking_id", trackingId)
-        .maybeSingle();
-
-      if (findError) throw findError;
-      if (!target) {
-        setDupError(`No report found with tracking ID ${trackingId}.`);
-        return;
-      }
-      if (target.id === issue.id) {
-        setDupError("A report cannot be marked as a duplicate of itself.");
-        return;
-      }
-
-      const { error: updateError } = await supabase
-        .from("issues")
-        .update({ status: "duplicate", duplicate_of_issue_id: target.id, updated_at: new Date().toISOString() })
-        .eq("id", issue.id);
-
-      if (updateError) throw updateError;
+      const { error: rpcError } = await supabase.rpc("mark_issue_duplicate", {
+        p_issue_id: issue.id,
+        p_duplicate_of_tracking_id: trackingId,
+      });
+      if (rpcError) throw rpcError;
       router.refresh();
     } catch (err) {
       setDupError(err instanceof Error ? err.message : "Could not mark this report as a duplicate.");
@@ -141,13 +124,10 @@ export function TriagePanel({
     setAssignError(null);
     setAssignSaved(null);
     try {
-      const update: Record<string, unknown> = {
-        department_id: departmentId,
-        updated_at: new Date().toISOString(),
-      };
-      if (issue.status === "triaged") update.status = "assigned";
-
-      const { error } = await supabase.from("issues").update(update).eq("id", issue.id);
+      const { error } = await supabase.rpc("route_issue_department", {
+        p_issue_id: issue.id,
+        p_department_id: departmentId,
+      });
       if (error) throw error;
 
       setAssignSaved("Routed to department.");

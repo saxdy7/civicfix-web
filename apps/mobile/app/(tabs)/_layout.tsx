@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
+import { StyleSheet } from "react-native";
 
 import { useAuth } from "../../lib/auth-context";
-import { color } from "../../lib/theme";
+import { color, fontFamily, fontSize } from "../../lib/theme";
 
 export default function TabsLayout() {
   const { user } = useAuth();
@@ -14,9 +15,19 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: color.civicBlue,
-        tabBarInactiveTintColor: color.slate600,
+        tabBarActiveTintColor: color.foreground,
+        tabBarInactiveTintColor: color.dimForeground,
+        tabBarStyle: {
+          backgroundColor: color.background,
+          borderTopColor: color.border,
+          borderTopWidth: StyleSheet.hairlineWidth,
+        },
+        tabBarLabelStyle: { fontFamily: fontFamily.medium, fontSize: fontSize.xs },
         headerShown: true,
+        headerStyle: { backgroundColor: color.background },
+        headerTintColor: color.foreground,
+        headerTitleStyle: { fontFamily: fontFamily.semibold, color: color.foreground, fontSize: fontSize.md },
+        headerShadowVisible: false,
       }}
     >
       <Tabs.Screen

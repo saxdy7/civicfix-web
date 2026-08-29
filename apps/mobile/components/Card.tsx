@@ -2,8 +2,25 @@ import { View, StyleSheet, type ViewProps } from "react-native";
 
 import { color, radius, spacing } from "../lib/theme";
 
-export function Card({ style, ...props }: ViewProps) {
-  return <View style={[styles.card, style]} {...props} />;
+interface CardProps extends ViewProps {
+  tone?: "default" | "muted" | "inverse";
+  /** Removes padding — for photo/media that should fill the card edge-to-edge. */
+  flush?: boolean;
+}
+
+export function Card({ style, tone = "default", flush = false, ...props }: CardProps) {
+  return (
+    <View
+      style={[
+        styles.card,
+        tone === "muted" && styles.muted,
+        tone === "inverse" && styles.inverse,
+        flush && styles.flush,
+        style,
+      ]}
+      {...props}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
@@ -14,5 +31,18 @@ const styles = StyleSheet.create({
     borderColor: color.border,
     padding: spacing[4],
     gap: spacing[2],
+    overflow: "hidden",
+  },
+  muted: {
+    backgroundColor: color.surfaceMuted,
+    borderColor: "transparent",
+  },
+  inverse: {
+    backgroundColor: color.inverseBackground,
+    borderColor: "transparent",
+  },
+  flush: {
+    padding: 0,
+    gap: 0,
   },
 });

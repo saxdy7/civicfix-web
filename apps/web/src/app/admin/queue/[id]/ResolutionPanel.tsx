@@ -58,23 +58,21 @@ export function ResolutionPanel({
     setError(null);
     setSaved(null);
     try {
-      const update: Record<string, unknown> = {
-        severity,
-        updated_at: new Date().toISOString(),
-      };
-      if (nextStatus) update.status = nextStatus;
+      const { error: rpcError } = await supabase.rpc("update_issue_status", {
+        p_issue_id: issue.id,
+        p_next_status: nextStatus || null,
+        p_severity: severity !== issue.severity ? severity : null,
+        p_note: note.trim() || null,
+      });
+      if (rpcError) throw rpcError;
 
-      const { error: updateError } = await supabase.from("issues").update(update).eq("id", issue.id);
-      if (updateError) throw updateError;
-
-      const parts = [nextStatus ? `Status set to ${STATUS_SHORT_LABEL[nextStatus]}.` : null, `Severity set to ${severity}.`];
-      if (note.trim()) {
-        parts.push(
-          "Your note was not saved — there is no write path for staff notes yet (issue_events and audit_logs both block client inserts by design).",
-        );
-      }
-      setSaved(parts.filter(Boolean).join(" "));
+      const parts = [
+        nextStatus ? `Status set to ${STATUS_SHORT_LABEL[nextStatus]}.` : null,
+        severity !== issue.severity ? `Severity set to ${severity}.` : null,
+      ];
+      setSaved(parts.filter(Boolean).join(" ") || "Saved.");
       setNextStatus("");
+      setNote("");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save this decision.");
@@ -94,7 +92,8 @@ export function ResolutionPanel({
           lineHeight: 1.6,
         }}
       >
-        Severity and status changes are written directly to the issue record.
+        Severity and status changes go through an audited, transition-checked server function —
+        never a direct database write.
       </p>
 
       {/* Severity */}
@@ -169,7 +168,7 @@ export function ResolutionPanel({
         }}
       >
         <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600 }}>
-          Staff note {needsReason ? "(required)" : "(optional — not yet saved anywhere)"}
+          Staff note {needsReason ? "(required)" : "(optional — recorded on the status change)"}
         </span>
         <textarea
           value={note}

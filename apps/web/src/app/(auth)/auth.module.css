@@ -60,20 +60,30 @@
   line-height: 1.5;
 }
 
-.divider {
+.passwordWrapper {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  color: var(--color-muted-foreground);
-  font-size: var(--font-size-xs);
 }
 
-.divider::before,
-.divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--color-border);
+.passwordWrapper .input {
+  padding-right: var(--space-8);
+}
+
+.passwordToggle {
+  position: absolute;
+  right: var(--space-3);
+  background: none;
+  border: none;
+  padding: var(--space-1);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+}
+
+.passwordToggle:hover {
+  color: var(--color-foreground);
 }
 
 .field {

@@ -1,17 +1,34 @@
-import { Text, View, StyleSheet } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Text, View, StyleSheet } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
-import { MOCK_ISSUES } from "../../lib/mock-data";
+import { useAuth } from "../../lib/auth-context";
+import { fetchMyIssueById } from "../../lib/repositories/issues";
 import { CATEGORY_LABEL, STATUS_LABEL, STATUS_SHORT_LABEL } from "../../lib/status";
 import { color, fontSize, spacing } from "../../lib/theme";
+import type { Issue } from "../../lib/types";
 
 export default function ReportDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const issue = MOCK_ISSUES.find((item) => item.id === id);
+  const { user } = useAuth();
+  const [issue, setIssue] = useState<Issue | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!user || !id) return;
+    fetchMyIssueById(id, user.id).then(setIssue);
+  }, [id, user]);
+
+  if (issue === undefined) {
+    return (
+      <ScreenContainer>
+        <ActivityIndicator color={color.civicBlue} />
+      </ScreenContainer>
+    );
+  }
 
   if (!issue) {
     return (

@@ -1,88 +1,215 @@
 import { useState } from "react";
-import { Text, View, StyleSheet } from "react-native";
-import { Redirect } from "expo-router";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import { Button } from "../components/Button";
 import { TextField } from "../components/TextField";
-import { ScreenContainer } from "../components/ScreenContainer";
 import { useAuth } from "../lib/auth-context";
-import { color, fontSize, spacing } from "../lib/theme";
-import type { UserRole } from "../lib/auth-context";
+import { isSupabaseConfigured } from "../lib/supabase";
+import { color, fontFamily, fontSize, radius, spacing } from "../lib/theme";
 
 export default function SignIn() {
-  const { user, signIn } = useAuth();
+  const router = useRouter();
+  const { mode: initialMode } = useLocalSearchParams<{ mode?: string }>();
+  const { user, signIn, signUp, continueAsDemo } = useAuth();
+  const [mode, setMode] = useState<"sign-in" | "sign-up">(initialMode === "sign-up" ? "sign-up" : "sign-in");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<UserRole>("citizen");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   if (user) return <Redirect href="/(tabs)" />;
 
+  const canSubmit = email.includes("@") && password.length >= 8 && (mode === "sign-in" || name.trim().length >= 2);
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setError(null);
+    setInfo(null);
+    setSubmitting(true);
+
+    if (mode === "sign-in") {
+      const { error: signInError } = await signIn(email.trim(), password);
+      if (signInError) setError(signInError);
+    } else {
+      const { error: signUpError, needsConfirmation } = await signUp(email.trim(), password, name);
+      if (signUpError) {
+        setError(signUpError);
+      } else if (needsConfirmation) {
+        setInfo("Check your email to confirm your account, then sign in.");
+        setMode("sign-in");
+      }
+    }
+    setSubmitting(false);
+  };
+
   return (
-    <ScreenContainer>
-      <View style={styles.hero}>
-        <Text style={styles.title}>CivicFix</Text>
-        <Text style={styles.subtitle}>Report it. Track it. Get it fixed.</Text>
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+      >
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            onPress={() => (router.canGoBack() ? router.back() : router.replace("/landing"))}
+            style={styles.backButton}
+            hitSlop={8}
+          >
+            <Ionicons name="arrow-back" size={20} color={color.foreground} />
+          </Pressable>
 
-      <TextField
-        label="Email"
-        placeholder="you@example.com"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
+          <View style={styles.hero}>
+            <Text style={styles.title}>{mode === "sign-in" ? "Welcome back" : "Create your account"}</Text>
+            <Text style={styles.subtitle}>
+              {mode === "sign-in"
+                ? "Sign in to track your reports and follow every update."
+                : "Report a civic issue in under a minute and follow it through to resolution."}
+            </Text>
+          </View>
 
-      <View style={styles.roleRow}>
-        <Button
-          label="Citizen"
-          variant={role === "citizen" ? "primary" : "secondary"}
-          onPress={() => setRole("citizen")}
-          style={styles.roleButton}
-        />
-        <Button
-          label="Field worker"
-          variant={role === "field_worker" ? "primary" : "secondary"}
-          onPress={() => setRole("field_worker")}
-          style={styles.roleButton}
-        />
-      </View>
+          {mode === "sign-up" ? (
+            <TextField label="Full name" placeholder="Your name" autoCapitalize="words" value={name} onChangeText={setName} />
+          ) : null}
 
-      <Button
-        label="Sign in"
-        disabled={!email.includes("@")}
-        onPress={() => signIn(email, role)}
-      />
+          <TextField
+            label="Email"
+            placeholder="you@example.com"
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
 
-      <Text style={styles.hint}>
-        Demo mode: any email signs you in as the selected role. Real Supabase Auth wires in later.
-      </Text>
-    </ScreenContainer>
+          <TextField
+            label="Password"
+            placeholder="At least 8 characters"
+            isPassword
+            autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+            value={password}
+            onChangeText={setPassword}
+            hint={mode === "sign-up" ? "At least 8 characters." : undefined}
+          />
+
+          {mode === "sign-in" ? (
+            <Button
+              label="Forgot password?"
+              variant="ghost"
+              haptics={false}
+              onPress={() => router.push("/forgot-password")}
+              style={styles.forgotButton}
+            />
+          ) : null}
+
+          {error ? (
+            <Text style={styles.errorText} accessibilityLiveRegion="polite">
+              {error}
+            </Text>
+          ) : null}
+          {info ? (
+            <Text style={styles.infoText} accessibilityLiveRegion="polite">
+              {info}
+            </Text>
+          ) : null}
+
+          <Button
+            label={submitting ? "Please wait…" : mode === "sign-in" ? "Sign in" : "Create account"}
+            size="hero"
+            disabled={!canSubmit || submitting || !isSupabaseConfigured}
+            onPress={handleSubmit}
+          />
+
+          <Button
+            label={mode === "sign-in" ? "New here? Create an account" : "Already have an account? Sign in"}
+            variant="secondary"
+            onPress={() => {
+              setError(null);
+              setInfo(null);
+              setMode((m) => (m === "sign-in" ? "sign-up" : "sign-in"));
+            }}
+          />
+
+          {!isSupabaseConfigured ? (
+            <View style={styles.demoBox}>
+              <Text style={styles.hint}>
+                No Supabase credentials configured — sign-in is disabled. You can still explore the app
+                in demo mode; nothing you do there is saved.
+              </Text>
+              <Button label="Continue in demo mode" variant="ghost" onPress={continueAsDemo} />
+            </View>
+          ) : null}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: color.background,
+  },
+  content: {
+    padding: spacing[5],
+    gap: spacing[4],
+  },
+  backButton: {
+    alignSelf: "flex-start",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: color.surfaceMuted,
+  },
   hero: {
     gap: spacing[1],
-    marginBottom: spacing[3],
+    marginBottom: spacing[2],
   },
   title: {
     fontSize: fontSize.xxl,
-    fontWeight: "800",
+    fontFamily: fontFamily.bold,
     color: color.foreground,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: fontSize.md,
+    fontFamily: fontFamily.regular,
     color: color.mutedForeground,
+    lineHeight: 22,
   },
-  roleRow: {
-    flexDirection: "row",
-    gap: spacing[3],
+  forgotButton: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 0,
+    minHeight: 32,
   },
-  roleButton: {
-    flex: 1,
+  errorText: {
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.medium,
+    color: color.civicRed,
+  },
+  infoText: {
+    fontSize: fontSize.sm,
+    fontFamily: fontFamily.medium,
+    color: color.civicGreen,
+  },
+  demoBox: {
+    marginTop: spacing[4],
+    padding: spacing[4],
+    borderRadius: radius.card,
+    backgroundColor: color.surfaceMuted,
+    gap: spacing[2],
   },
   hint: {
     fontSize: fontSize.xs,
+    fontFamily: fontFamily.regular,
     color: color.mutedForeground,
     textAlign: "center",
   },

@@ -1,23 +1,42 @@
-import { ScrollView, View, StyleSheet, type ViewProps } from "react-native";
+import { ScrollView, View, StyleSheet, type ViewProps, type ScrollViewProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { DemoBanner } from "./DemoBanner";
 import { color, spacing } from "../lib/theme";
 
 interface ScreenContainerProps extends ViewProps {
   scroll?: boolean;
+  refreshControl?: ScrollViewProps["refreshControl"];
 }
 
-export function ScreenContainer({ scroll = true, style, children, ...props }: ScreenContainerProps) {
-  const Wrapper = scroll ? ScrollView : View;
-  const wrapperProps = scroll
-    ? { contentContainerStyle: styles.scrollContent }
-    : { style: styles.flexContent };
+export function ScreenContainer({
+  scroll = true,
+  refreshControl,
+  style,
+  children,
+  ...props
+}: ScreenContainerProps) {
+  if (!scroll) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <View style={styles.flexContent} {...props}>
+          <DemoBanner />
+          <View style={style}>{children}</View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <Wrapper {...wrapperProps} {...props}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={refreshControl}
+        {...props}
+      >
+        <DemoBanner />
         <View style={style}>{children}</View>
-      </Wrapper>
+      </ScrollView>
     </SafeAreaView>
   );
 }

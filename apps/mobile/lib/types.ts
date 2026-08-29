@@ -35,6 +35,8 @@ export interface Issue {
   createdAt: string;
   updatedAt: string;
   events: IssueEvent[];
+  /** Present on nearby/public listings; absent (undefined) elsewhere. */
+  reporterId?: string;
 }
 
 export type AssignmentStatus = "assigned" | "in_progress" | "pending_verification" | "resolved";
@@ -45,6 +47,8 @@ export interface Assignment {
   issueSummary: string;
   category: IssueCategory;
   neighborhood: string;
+  latitude: number;
+  longitude: number;
   status: AssignmentStatus;
   dueAt: string;
   beforePhotoCaptured: boolean;

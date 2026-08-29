@@ -23,6 +23,7 @@ export function SignUpForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -70,15 +71,6 @@ export function SignUpForm() {
     }
   };
 
-  const handleGoogle = async () => {
-    if (!supabase) return setError("Google sign-up needs Supabase credentials configured.");
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/app` },
-    });
-    if (oauthError) setError(authErrorMessage(oauthError));
-  };
-
   if (needsConfirmation) {
     return (
       <div className={styles.formSide}>
@@ -116,12 +108,6 @@ export function SignUpForm() {
             <p className={styles.subtitle}>Report an issue and follow it through to resolution.</p>
           </div>
 
-          <Button type="button" variant="secondary" block onClick={handleGoogle}>
-            Continue with Google
-          </Button>
-
-          <div className={styles.divider}>or</div>
-
           <div className={styles.field}>
             <label className={styles.label} htmlFor="name">
               Name
@@ -155,15 +141,26 @@ export function SignUpForm() {
             <label className={styles.label} htmlFor="password">
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              className={styles.input}
-              placeholder="At least 8 characters"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-            />
+            <div className={styles.passwordWrapper}>
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                className={styles.input}
+                placeholder="At least 8 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+                style={{ width: "100%" }}
+              />
+              <button
+                type="button"
+                className={styles.passwordToggle}
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </div>
 
           <label className={styles.checkboxRow}>

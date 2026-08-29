@@ -26,7 +26,7 @@
   --radius-modal: 16px;
 
   /* Fonts */
-  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-sans: var(--font-inter), "Segoe UI", system-ui, sans-serif;
   --font-display: "BubbledotICG-FinePos", "Geist Pixel Circle", monospace;
 
   /* ---- Dark system (primary) ---- */
