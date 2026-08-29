@@ -19,8 +19,16 @@ const isAdminRoute = createRouteMatcher(["/admin(.*)"]);
  *    administrator role specifically.
  */
 export default clerkMiddleware(async (auth, req) => {
+  const res = NextResponse.next();
+  // Clear any legacy Supabase cookies lingering in the browser to prevent 431 header bloat
+  for (const cookie of req.cookies.getAll()) {
+    if (cookie.name.startsWith("sb-") || cookie.name.includes("supabase")) {
+      res.cookies.delete(cookie.name);
+    }
+  }
+
   const path = req.nextUrl.pathname;
-  if (!isAppRoute(req) && !isAdminRoute(req)) return NextResponse.next();
+  if (!isAppRoute(req) && !isAdminRoute(req)) return res;
 
   const { userId, getToken, redirectToSignIn } = await auth();
   if (!userId) {
@@ -41,7 +49,7 @@ export default clerkMiddleware(async (auth, req) => {
     }
   }
 
-  return NextResponse.next();
+  return res;
 });
 
 export const config = {
