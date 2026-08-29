@@ -13,7 +13,8 @@ import { CATEGORY_LABEL, STATUS_SHORT_LABEL } from "../../lib/status";
 import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
 import type { Assignment } from "../../lib/types";
 
-function dueMeta(dueAt: string): { label: string; tone: string } {
+function dueMeta(dueAt: string | null): { label: string; tone: string } {
+  if (!dueAt) return { label: "No due date set", tone: color.mutedForeground };
   const diffHours = (new Date(dueAt).getTime() - Date.now()) / 3_600_000;
   if (diffHours < 0) return { label: `Overdue · was due ${new Date(dueAt).toLocaleDateString()}`, tone: color.civicRed };
   if (diffHours < 24) return { label: "Due today", tone: color.civicAmber };

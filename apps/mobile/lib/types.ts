@@ -50,7 +50,8 @@ export interface Assignment {
   latitude: number;
   longitude: number;
   status: AssignmentStatus;
-  dueAt: string;
+  /** Null means no due date is set — render an honest "No due date" state, never a fake one. */
+  dueAt: string | null;
   beforePhotoCaptured: boolean;
   afterPhotoCaptured: boolean;
 }

@@ -259,7 +259,12 @@ create policy issue_media_read_own_or_staff on storage.objects
 create or replace function public.assign_worker(
   p_issue_id uuid,
   p_worker_id uuid,
-  p_due_at timestamptz default null
+  -- Defaults to 3 days out rather than null: a null due date previously
+  -- rendered as "overdue" on both clients the instant it was read back,
+  -- since neither had a real fallback for "no due date set." Evaluated
+  -- fresh per call (PL/pgSQL defaults aren't baked in at CREATE time), and
+  -- still overridable once a UI adds a real due-date picker.
+  p_due_at timestamptz default (now() + interval '3 days')
 )
 returns uuid
 language plpgsql

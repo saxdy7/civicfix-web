@@ -6,7 +6,8 @@ import styles from "./landing.module.css";
 
 interface StatSpec {
   icon: string;
-  target: number;
+  /** null means "no data to compute this from yet" — rendered as an em dash, never animated to a misleading 0. */
+  target: number | null;
   suffix: string;
   decimals: number;
   label: string;
@@ -14,9 +15,9 @@ interface StatSpec {
 
 export interface LandingStatsData {
   reportsHandled: number;
-  resolvedPct: number;
+  resolvedPct: number | null;
   activeResidents: number;
-  medianTriageHours: number;
+  medianTriageHours: number | null;
 }
 
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -46,7 +47,7 @@ export function LandingStats({ reportsHandled, resolvedPct, activeResidents, med
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       STATS.forEach((spec, i) => {
         const node = valueRefs.current[i];
-        if (node) node.textContent = format(spec, spec.target);
+        if (node) node.textContent = spec.target === null ? "—" : format(spec, spec.target);
       });
       return;
     }
@@ -59,6 +60,13 @@ export function LandingStats({ reportsHandled, resolvedPct, activeResidents, med
         const node = valueRefs.current[i];
         if (!node) return;
 
+        // Nothing to count up to — show the "no data yet" dash directly.
+        if (spec.target === null) {
+          node.textContent = "—";
+          return;
+        }
+        const target = spec.target;
+
         const duration = 1500 + i * 80;
         const startDelay = 480 + i * 90;
 
@@ -67,7 +75,7 @@ export function LandingStats({ reportsHandled, resolvedPct, activeResidents, med
             const start = performance.now();
             const tick = (now: number) => {
               const progress = Math.min(1, (now - start) / duration);
-              node.textContent = format(spec, spec.target * easeOutCubic(progress));
+              node.textContent = format(spec, target * easeOutCubic(progress));
               if (progress < 1) frames.push(requestAnimationFrame(tick));
             };
             frames.push(requestAnimationFrame(tick));
@@ -116,7 +124,7 @@ export function LandingStats({ reportsHandled, resolvedPct, activeResidents, med
               valueRefs.current[i] = el;
             }}
           >
-            {`0${spec.suffix}`}
+            {spec.target === null ? "—" : `0${spec.suffix}`}
           </span>
           <span className={styles.statLabel}>{spec.label}</span>
         </div>

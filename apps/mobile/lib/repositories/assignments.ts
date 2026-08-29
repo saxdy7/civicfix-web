@@ -50,7 +50,7 @@ function mapAssignment(row: RawAssignmentRow): Assignment {
     latitude,
     longitude,
     status: deriveStatus(row),
-    dueAt: row.due_at ?? new Date().toISOString(),
+    dueAt: row.due_at,
     beforePhotoCaptured: false,
     afterPhotoCaptured: Boolean(row.completed_at),
   };
@@ -105,14 +105,14 @@ export async function acceptAssignment(
     .eq("worker_id", workerId);
   if (error) return { error: error.message };
 
-  // See the note in submitResolutionEvidence — status-only, no event/audit
-  // record yet; that's item 4's job.
-  const { error: issueError } = await supabase
-    .from("issues")
-    .update({ status: "in_progress", updated_at: new Date().toISOString() })
-    .eq("id", issueId);
+  // Same audited RPC the web admin console uses for status changes — never
+  // a direct client-side write to issues.status.
+  const { error: rpcError } = await supabase.rpc("update_issue_status", {
+    p_issue_id: issueId,
+    p_next_status: "in_progress",
+  });
 
-  return { error: issueError?.message ?? null };
+  return { error: rpcError?.message ?? null };
 }
 
 async function uploadEvidencePhoto(
@@ -194,15 +194,10 @@ export async function submitResolutionEvidence(params: {
     .eq("worker_id", params.workerId);
   if (assignmentError) return { error: assignmentError.message };
 
-  // NOTE: this only flips `issues.status` — it deliberately does not write an
-  // `issue_events` row (no client insert policy exists for that table yet)
-  // or an audit_logs entry. Atomic, audited status transitions are item 4's
-  // job (a FastAPI endpoint or a SECURITY DEFINER RPC like `create_issue`),
-  // not something to bolt on here.
-  const { error: issueError } = await supabase
-    .from("issues")
-    .update({ status: "pending_verification", updated_at: new Date().toISOString() })
-    .eq("id", params.issueId);
+  const { error: statusError } = await supabase.rpc("update_issue_status", {
+    p_issue_id: params.issueId,
+    p_next_status: "pending_verification",
+  });
 
-  return { error: issueError?.message ?? null };
+  return { error: statusError?.message ?? null };
 }

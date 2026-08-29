@@ -73,7 +73,9 @@ export default function AssignmentDetail() {
         </View>
         <View style={styles.metaRow}>
           <Ionicons name="time-outline" size={14} color={color.mutedForeground} />
-          <Text style={styles.meta}>Due {new Date(assignment.dueAt).toLocaleString()}</Text>
+          <Text style={styles.meta}>
+            {assignment.dueAt ? `Due ${new Date(assignment.dueAt).toLocaleString()}` : "No due date set"}
+          </Text>
         </View>
       </Card>
 

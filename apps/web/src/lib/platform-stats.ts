@@ -2,16 +2,18 @@ import { createServerSupabase } from "./supabase-server";
 
 export interface PlatformStats {
   reportsHandled: number;
-  resolvedPct: number;
+  /** null (not 0) when there are no reports to compute a rate from — 0% would falsely read as "nothing gets resolved." */
+  resolvedPct: number | null;
   activeResidents: number;
-  medianTriageHours: number;
+  /** null (not 0) when no issue has ever been triaged yet — 0h would falsely read as "instant triage." */
+  medianTriageHours: number | null;
 }
 
 const EMPTY: PlatformStats = {
   reportsHandled: 0,
-  resolvedPct: 0,
+  resolvedPct: null,
   activeResidents: 0,
-  medianTriageHours: 0,
+  medianTriageHours: null,
 };
 
 /**
@@ -55,8 +57,8 @@ export async function getPlatformStats(): Promise<PlatformStats> {
 
   return {
     reportsHandled: totalCount,
-    resolvedPct: totalCount ? ((resolved ?? 0) / totalCount) * 100 : 0,
+    resolvedPct: totalCount ? ((resolved ?? 0) / totalCount) * 100 : null,
     activeResidents,
-    medianTriageHours: triageHours.length ? triageHours[Math.floor(triageHours.length / 2)] : 0,
+    medianTriageHours: triageHours.length ? triageHours[Math.floor(triageHours.length / 2)] : null,
   };
 }

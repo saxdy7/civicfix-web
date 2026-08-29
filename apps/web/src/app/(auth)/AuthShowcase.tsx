@@ -34,11 +34,15 @@ export function AuthShowcase({ title, body, points, stats }: AuthShowcaseProps) 
           <span className={styles.showStatLabel}>Reports handled</span>
         </div>
         <div>
-          <span className={styles.showStatValue}>{stats.resolvedPct.toFixed(0)}%</span>
+          <span className={styles.showStatValue}>
+            {stats.resolvedPct === null ? "—" : `${stats.resolvedPct.toFixed(0)}%`}
+          </span>
           <span className={styles.showStatLabel}>Resolved within SLA</span>
         </div>
         <div>
-          <span className={styles.showStatValue}>{stats.medianTriageHours.toFixed(1)}h</span>
+          <span className={styles.showStatValue}>
+            {stats.medianTriageHours === null ? "—" : `${stats.medianTriageHours.toFixed(1)}h`}
+          </span>
           <span className={styles.showStatLabel}>Median triage</span>
         </div>
       </div>
