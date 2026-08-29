@@ -170,6 +170,29 @@ export function SignInForm() {
           <p className={styles.footNote}>
             Administrator? <Link href="/admin-login">Sign in here</Link>
           </p>
+
+          <div
+            style={{
+              marginTop: "20px",
+              padding: "12px",
+              borderRadius: "8px",
+              border: "1px dashed var(--color-border, #333)",
+              background: "var(--color-surface, #111)",
+              fontSize: "12px",
+              color: "#aaa",
+              lineHeight: 1.6,
+            }}
+          >
+            <strong style={{ color: "#fff", display: "block", marginBottom: "4px" }}>
+              Demo Accounts:
+            </strong>
+            <div>
+              🏡 <strong>Resident (Citizen):</strong> <code>resident_demo@example.com</code> / <code>CivicFixDemo!2026</code>
+            </div>
+            <div>
+              🛡️ <strong>Administrator:</strong> <code>civicfix_admin_demo@example.com</code> / <code>CivicFixDemo!2026</code>
+            </div>
+          </div>
         </form>
       </div>
     </div>
