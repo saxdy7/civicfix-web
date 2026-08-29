@@ -74,7 +74,9 @@ async function main() {
     });
     console.log(`Created Clerk user ${clerkUser.id}.`);
   } else {
-    console.log(`Clerk user already exists (${clerkUser.id}) — leaving password as-is.`);
+    console.log(`Clerk user already exists (${clerkUser.id}) — updating password to match.`);
+    await clerk.users.updateUser(clerkUser.id, { password: ADMIN_PASSWORD });
+    console.log(`Password reset to: ${ADMIN_PASSWORD}`);
   }
 
   const email = clerkUser.emailAddresses[0]?.emailAddress ?? `${ADMIN_USERNAME}@example.com`;

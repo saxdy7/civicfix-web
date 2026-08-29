@@ -36,7 +36,17 @@ export function AdminLoginForm() {
     setSubmitting(true);
 
     try {
-      const result = await signIn.create({ identifier: trimmed, password });
+      let result;
+      try {
+        result = await signIn.create({ identifier: trimmed, password });
+      } catch (err: unknown) {
+        if (!trimmed.includes("@")) {
+          result = await signIn.create({ identifier: `${trimmed}@example.com`, password });
+        } else {
+          throw err;
+        }
+      }
+
       if (result.status !== "complete") {
         setError("Incorrect username or password.");
         setSubmitting(false);
@@ -49,8 +59,9 @@ export function AdminLoginForm() {
       // signs in here without the administrator role, signing them out of
       // this attempt rather than letting them into the console.
       window.location.assign(next ?? "/admin");
-    } catch {
-      setError("Incorrect username or password.");
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: { message?: string }[] };
+      setError(clerkErr?.errors?.[0]?.message ?? "Incorrect username or password.");
       setSubmitting(false);
     }
   };
