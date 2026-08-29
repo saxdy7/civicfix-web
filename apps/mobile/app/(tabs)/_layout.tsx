@@ -23,11 +23,12 @@ export default function TabsLayout() {
           borderTopWidth: StyleSheet.hairlineWidth,
         },
         tabBarLabelStyle: { fontFamily: fontFamily.medium, fontSize: fontSize.xs },
-        headerShown: true,
-        headerStyle: { backgroundColor: color.background },
-        headerTintColor: color.foreground,
-        headerTitleStyle: { fontFamily: fontFamily.semibold, color: color.foreground, fontSize: fontSize.md },
-        headerShadowVisible: false,
+        // Every tab screen renders its own cinematic heading inside
+        // ScreenContainer (whose SafeAreaView already reserves the top
+        // inset) — a native header here would double that top spacing,
+        // which is exactly the large empty gap seen under "Home"/"Report"/
+        // "My reports" in review. Custom headings replace it instead.
+        headerShown: false,
       }}
     >
       <Tabs.Screen

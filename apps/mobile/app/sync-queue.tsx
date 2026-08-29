@@ -7,7 +7,7 @@ import { EmptyState } from "../components/EmptyState";
 // back online) is future work, not something to fake here.
 export default function SyncQueue() {
   return (
-    <ScreenContainer>
+    <ScreenContainer edges={["left", "right"]}>
       <EmptyState
         title="Offline queue not available yet"
         description="Reports and evidence submit immediately while you're online. Offline drafting hasn't been built yet."

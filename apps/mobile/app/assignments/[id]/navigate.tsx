@@ -47,7 +47,7 @@ export default function NavigateHandoff() {
   };
 
   return (
-    <ScreenContainer scroll={false}>
+    <ScreenContainer scroll={false} edges={["left", "right"]}>
       <View style={styles.center}>
         <View style={styles.mapPlaceholder}>
           <Text style={styles.mapPlaceholderText}>

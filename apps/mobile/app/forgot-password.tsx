@@ -32,7 +32,7 @@ export default function ForgotPassword() {
 
   if (sent) {
     return (
-      <ScreenContainer>
+      <ScreenContainer edges={["left", "right"]}>
         <Card style={{ alignItems: "center", gap: spacing[2], marginTop: spacing[6] }}>
           <Text style={styles.title}>Check your email</Text>
           <Text style={styles.body}>
@@ -45,7 +45,7 @@ export default function ForgotPassword() {
   }
 
   return (
-    <ScreenContainer>
+    <ScreenContainer edges={["left", "right"]}>
       <Text style={styles.title}>Reset your password</Text>
       <Text style={styles.body}>
         Enter the email on your account and we'll send you a link to choose a new password.

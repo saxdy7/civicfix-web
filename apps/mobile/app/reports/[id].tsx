@@ -24,7 +24,7 @@ export default function ReportDetail() {
 
   if (issue === undefined) {
     return (
-      <ScreenContainer>
+      <ScreenContainer edges={["left", "right"]}>
         <ActivityIndicator color={color.civicBlue} />
       </ScreenContainer>
     );
@@ -32,14 +32,14 @@ export default function ReportDetail() {
 
   if (!issue) {
     return (
-      <ScreenContainer>
+      <ScreenContainer edges={["left", "right"]}>
         <EmptyState title="Report not found" description="This report may have been removed." />
       </ScreenContainer>
     );
   }
 
   return (
-    <ScreenContainer>
+    <ScreenContainer edges={["left", "right"]}>
       <Card>
         <View style={styles.rowBetween}>
           <Text style={styles.trackingId}>{issue.trackingId}</Text>

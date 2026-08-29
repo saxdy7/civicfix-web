@@ -79,7 +79,10 @@ export default function NotificationsScreen() {
   const read = notifications.filter((n) => n.read);
 
   return (
-    <ScreenContainer refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={color.foreground} />}>
+    <ScreenContainer
+      edges={["left", "right"]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={color.foreground} />}
+    >
       {permissionDenied ? (
         <Card tone="muted" style={styles.permissionCard}>
           <Ionicons name="notifications-off-outline" size={20} color={color.civicAmber} />

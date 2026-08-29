@@ -53,7 +53,14 @@ export function Button({
       ]}
       {...props}
     >
-      <Text style={[styles.label, { color: textColor }, size === "hero" && styles.heroLabel]}>{label}</Text>
+      <Text
+        style={[styles.label, { color: textColor }, size === "hero" && styles.heroLabel]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.85}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }

@@ -172,6 +172,7 @@ export default function ReportIssue() {
 
   return (
     <ScreenContainer>
+      <Text style={styles.pageTitle}>Report an issue</Text>
       <Text style={styles.sectionTitle}>1. What kind of issue?</Text>
       <View style={styles.categoryGrid}>
         {CATEGORIES.map((cat) => {
@@ -241,7 +242,7 @@ export default function ReportIssue() {
         {SEVERITIES.map((s) => {
           const active = severity === s.key;
           return (
-            <View key={s.key} style={{ flex: 1 }}>
+            <View key={s.key} style={styles.severityButton}>
               <Button
                 label={s.label}
                 variant={active ? "primary" : "secondary"}
@@ -285,6 +286,12 @@ export default function ReportIssue() {
 }
 
 const styles = StyleSheet.create({
+  pageTitle: {
+    fontSize: fontSize.xl,
+    fontFamily: fontFamily.bold,
+    color: color.foreground,
+    letterSpacing: -0.4,
+  },
   sectionTitle: {
     fontSize: fontSize.lg,
     fontFamily: fontFamily.semibold,
@@ -301,7 +308,12 @@ const styles = StyleSheet.create({
   },
   severityRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing[2],
+  },
+  severityButton: {
+    minWidth: "47%",
+    flexGrow: 1,
   },
   cardTitle: {
     fontSize: fontSize.md,

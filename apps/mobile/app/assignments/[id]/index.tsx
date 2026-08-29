@@ -30,7 +30,7 @@ export default function AssignmentDetail() {
 
   if (assignment === undefined) {
     return (
-      <ScreenContainer>
+      <ScreenContainer edges={["left", "right"]}>
         <ActivityIndicator color={color.civicBlue} />
       </ScreenContainer>
     );
@@ -38,7 +38,7 @@ export default function AssignmentDetail() {
 
   if (!assignment) {
     return (
-      <ScreenContainer>
+      <ScreenContainer edges={["left", "right"]}>
         <EmptyState title="Assignment not found" description="It may have been reassigned." />
       </ScreenContainer>
     );
@@ -58,7 +58,7 @@ export default function AssignmentDetail() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer edges={["left", "right"]}>
       <Card>
         <View style={styles.rowBetween}>
           <Text style={styles.title}>{CATEGORY_LABEL[assignment.category]}</Text>

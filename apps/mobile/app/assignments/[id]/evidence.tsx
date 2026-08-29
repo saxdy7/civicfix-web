@@ -88,7 +88,7 @@ export default function ResolutionEvidence() {
 
   if (submitted) {
     return (
-      <ScreenContainer scroll={false}>
+      <ScreenContainer scroll={false} edges={["left", "right"]}>
         <View style={styles.center}>
           <Text style={styles.checkmark}>✓</Text>
           <Text style={styles.submittedTitle}>Submitted for verification</Text>
@@ -103,7 +103,7 @@ export default function ResolutionEvidence() {
   }
 
   return (
-    <ScreenContainer>
+    <ScreenContainer edges={["left", "right"]}>
       <Card>
         <Text style={styles.cardTitle}>Before photo</Text>
         {before ? <Image source={{ uri: before.uri }} style={styles.photoPreview} /> : null}

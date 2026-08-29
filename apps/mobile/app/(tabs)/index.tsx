@@ -84,8 +84,11 @@ export default function Home() {
       }
     >
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>{greeting()}{user ? `, ${user.name.split(" ")[0]}` : ""}</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.greeting} numberOfLines={2}>
+            {greeting()}
+            {user ? `, ${user.name.split(" ")[0]}` : ""}
+          </Text>
           <Text style={styles.summary}>
             {activeIssues.length === 0
               ? "No active reports right now."
@@ -215,6 +218,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: spacing[3],
   },
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+  },
   greeting: {
     fontSize: fontSize.xl,
     fontFamily: fontFamily.bold,
@@ -229,6 +236,7 @@ const styles = StyleSheet.create({
   },
   headerCta: {
     paddingHorizontal: spacing[4],
+    flexShrink: 0,
   },
   section: {
     gap: spacing[3],

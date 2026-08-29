@@ -63,7 +63,9 @@ async function loadProfile(session: Session): Promise<CurrentUser> {
 
   return {
     id: session.user.id,
-    name: profile?.full_name || session.user.email?.split("@")[0] || "Resident",
+    // Never fall back to a raw email localpart as a "name" — it reads as a
+    // broken username, not a greeting. A generic "Resident" is more honest.
+    name: profile?.full_name?.trim() || "Resident",
     email: profile?.email || session.user.email || "",
     roles,
     role: roles.includes("field_worker") ? "field_worker" : "citizen",

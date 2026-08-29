@@ -71,6 +71,7 @@ export default function MyReports() {
 
   return (
     <ScreenContainer refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={color.foreground} />}>
+      <Text style={styles.pageTitle}>My reports</Text>
       <View style={styles.filterRow}>
         {FILTERS.map((f) => {
           const active = filter === f.key;
@@ -127,6 +128,12 @@ export default function MyReports() {
 }
 
 const styles = StyleSheet.create({
+  pageTitle: {
+    fontSize: fontSize.xl,
+    fontFamily: fontFamily.bold,
+    color: color.foreground,
+    letterSpacing: -0.4,
+  },
   filterRow: {
     flexDirection: "row",
     gap: spacing[2],
