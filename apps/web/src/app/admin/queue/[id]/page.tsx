@@ -10,8 +10,11 @@ import { CATEGORY_LABEL, SEVERITY_LABEL } from "@/lib/status";
 import type { IssueCategory } from "@/lib/types";
 
 import styles from "../../admin.module.css";
+import { EvidencePanel, type EvidenceRecord } from "./EvidencePanel";
 import { ResolutionPanel } from "./ResolutionPanel";
 import { TriagePanel } from "./TriagePanel";
+
+const EVIDENCE_SIGNED_URL_TTL_SECONDS = 60 * 10;
 
 interface AiAssessmentRow {
   provider: string;
@@ -63,7 +66,11 @@ export default async function IssueTriagePage({ params }: PageProps<"/admin/queu
       .select("id, status, note, created_at")
       .eq("issue_id", id)
       .order("created_at", { ascending: true }),
-    supabase.from("resolution_evidence").select("id, verified_at").eq("issue_id", id),
+    supabase
+      .from("resolution_evidence")
+      .select("id, before_media_id, after_media_id, note, submitted_at, verified_at")
+      .eq("issue_id", id)
+      .order("submitted_at", { ascending: false }),
     supabase
       .from("assignments")
       .select("id, worker_id, due_at, accepted_at, completed_at, created_at")
@@ -84,7 +91,43 @@ export default async function IssueTriagePage({ params }: PageProps<"/admin/queu
   const events = (eventsRes.data ?? []).map(mapIssueEventRow);
   const issue = mapIssueRow(issueRow as unknown as IssueRow, events);
 
-  const hasVerifiedEvidence = (evidenceRes.data ?? []).some((row) => row.verified_at !== null);
+  const evidenceRows = (evidenceRes.data ?? []) as {
+    id: string;
+    before_media_id: string | null;
+    after_media_id: string | null;
+    note: string | null;
+    submitted_at: string;
+    verified_at: string | null;
+  }[];
+  const hasVerifiedEvidence = evidenceRows.some((row) => row.verified_at !== null);
+  const latestEvidenceRow = evidenceRows[0] ?? null;
+
+  let latestEvidence: EvidenceRecord | null = null;
+  if (latestEvidenceRow) {
+    const mediaIds = [latestEvidenceRow.before_media_id, latestEvidenceRow.after_media_id].filter(
+      (mid): mid is string => Boolean(mid),
+    );
+    const urlByMediaId = new Map<string, string>();
+    if (mediaIds.length > 0) {
+      const { data: mediaRows } = await supabase.from("issue_media").select("id, storage_key").in("id", mediaIds);
+      await Promise.all(
+        (mediaRows ?? []).map(async (row) => {
+          const { data: signed } = await supabase.storage
+            .from("issue-media")
+            .createSignedUrl(row.storage_key, EVIDENCE_SIGNED_URL_TTL_SECONDS);
+          if (signed?.signedUrl) urlByMediaId.set(row.id, signed.signedUrl);
+        }),
+      );
+    }
+    latestEvidence = {
+      id: latestEvidenceRow.id,
+      beforeUrl: latestEvidenceRow.before_media_id ? (urlByMediaId.get(latestEvidenceRow.before_media_id) ?? null) : null,
+      afterUrl: latestEvidenceRow.after_media_id ? (urlByMediaId.get(latestEvidenceRow.after_media_id) ?? null) : null,
+      note: latestEvidenceRow.note,
+      submittedAt: latestEvidenceRow.submitted_at,
+      verifiedAt: latestEvidenceRow.verified_at,
+    };
+  }
 
   const assignmentRow = (assignmentsRes.data ?? [])[0] as
     | { id: string; worker_id: string | null; due_at: string | null; accepted_at: string | null; completed_at: string | null }
@@ -156,6 +199,18 @@ export default async function IssueTriagePage({ params }: PageProps<"/admin/queu
         workers={workers}
         assignedWorkerId={assignmentRow?.worker_id ?? null}
       />
+
+      {session ? (
+        <div style={{ marginTop: "var(--space-4)" }}>
+          <EvidencePanel
+            issueId={issue.id}
+            issueStatus={issue.status}
+            assignmentId={assignmentRow?.id ?? null}
+            currentUserId={session.userId}
+            evidence={latestEvidence}
+          />
+        </div>
+      ) : null}
 
       <div style={{ marginTop: "var(--space-4)" }}>
         <ResolutionPanel
