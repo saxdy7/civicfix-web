@@ -2,8 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 // CivicFix Convex schema — the single source of truth for both apps/web and
-// apps/mobile. Replaces the retired Supabase Postgres schema (see
-// supabase/migrations/ history for the prior shape this mirrors).
+// apps/mobile.
 //
 // Identity: every user-owned row stores a Convex `users` document id, never
 // a raw Clerk id directly — `users.clerkId` is the one place Clerk's id is
@@ -21,7 +20,7 @@ export default defineSchema({
     email: v.optional(v.string()),
     // Set only when an approved staff_access_request carries one — lets a
     // field worker or manager sign in with their employee ID instead of
-    // typing their email, same convention the Supabase build used.
+    // typing their email.
     employeeId: v.optional(v.string()),
     trustScore: v.number(), // starts at 100; see trustScoreEvents for the ledger
     restrictedUntil: v.optional(v.number()), // epoch ms; new-report creation blocked until this passes

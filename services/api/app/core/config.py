@@ -8,9 +8,8 @@ class Settings(BaseSettings):
 
     environment: str = "local"
 
-    supabase_url: str = ""
-    supabase_service_role_key: str = ""
-    supabase_jwt_secret: str = ""
+    convex_url: str = ""
+    clerk_secret_key: str = ""
 
     groq_api_key: str = ""
     openrouter_api_key: str = ""

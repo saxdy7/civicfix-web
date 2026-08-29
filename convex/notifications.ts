@@ -49,7 +49,7 @@ export const markAllRead = mutation({
   },
 });
 
-/** Registers/refreshes an FCM device token for push delivery — see convex/push.ts for the send-side action. */
+/** Registers/refreshes an FCM / Expo device token for push delivery. */
 export const registerDeviceToken = mutation({
   args: { fcmToken: v.string(), platform: v.string() },
   handler: async (ctx, args) => {
@@ -63,6 +63,23 @@ export const registerDeviceToken = mutation({
       await ctx.db.patch(existing._id, { userId: user._id, lastSeenAt: now });
       return existing._id;
     }
-    return await ctx.db.insert("deviceTokens", { userId: user._id, fcmToken: args.fcmToken, platform: args.platform, createdAt: now, lastSeenAt: now });
+    return await ctx.db.insert("deviceTokens", {
+      userId: user._id,
+      fcmToken: args.fcmToken,
+      platform: args.platform,
+      createdAt: now,
+      lastSeenAt: now,
+    });
   },
 });
+
+export const getTokensForUser = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("deviceTokens")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+  },
+});
+

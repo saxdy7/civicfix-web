@@ -7,17 +7,19 @@ import { Ionicons } from "@expo/vector-icons";
 import { Button } from "../components/Button";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../lib/auth-context";
-import { isSupabaseConfigured } from "../lib/supabase";
+import { isBackendConfigured } from "../lib/convex-client";
 import { color, fontFamily, fontSize, radius, spacing } from "../lib/theme";
 
 export default function SignIn() {
   const router = useRouter();
   const { mode: initialMode } = useLocalSearchParams<{ mode?: string }>();
-  const { user, signIn, signUp, continueAsDemo } = useAuth();
+  const { user, signIn, signUp, confirmSignUp, continueAsDemo } = useAuth();
   const [mode, setMode] = useState<"sign-in" | "sign-up">(initialMode === "sign-up" ? "sign-up" : "sign-in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [pendingCode, setPendingCode] = useState(false);
+  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -42,12 +44,91 @@ export default function SignIn() {
       if (signUpError) {
         setError(signUpError);
       } else if (needsConfirmation) {
-        setInfo("Check your email to confirm your account, then sign in.");
-        setMode("sign-in");
+        setPendingCode(true);
       }
     }
     setSubmitting(false);
   };
+
+  const handleVerify = async () => {
+    if (code.trim().length === 0) {
+      setError("Enter the verification code.");
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    const { error: verifyError } = await confirmSignUp(code.trim());
+    if (verifyError) {
+      setError(verifyError);
+    }
+    setSubmitting(false);
+  };
+
+  if (pendingCode) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+        >
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              onPress={() => {
+                setPendingCode(false);
+                setError(null);
+              }}
+              style={styles.backButton}
+              hitSlop={8}
+            >
+              <Ionicons name="arrow-back" size={20} color={color.foreground} />
+            </Pressable>
+
+            <View style={styles.hero}>
+              <Text style={styles.title}>Check your email</Text>
+              <Text style={styles.subtitle}>
+                We sent a 6-digit code to {email}. Enter it below to finish creating your account.
+              </Text>
+            </View>
+
+            <TextField
+              label="Verification code"
+              placeholder="123456"
+              autoCapitalize="none"
+              autoComplete="one-time-code"
+              keyboardType="number-pad"
+              value={code}
+              onChangeText={setCode}
+            />
+
+            {error ? (
+              <Text style={styles.errorText} accessibilityLiveRegion="polite">
+                {error}
+              </Text>
+            ) : null}
+
+            <Button
+              label={submitting ? "Verifying…" : "Verify and continue"}
+              size="hero"
+              disabled={code.trim().length === 0 || submitting}
+              onPress={handleVerify}
+            />
+
+            <Button
+              label="Use a different email"
+              variant="secondary"
+              onPress={() => {
+                setPendingCode(false);
+                setError(null);
+              }}
+            />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
@@ -124,7 +205,7 @@ export default function SignIn() {
           <Button
             label={submitting ? "Please wait…" : mode === "sign-in" ? "Sign in" : "Create account"}
             size="hero"
-            disabled={!canSubmit || submitting || !isSupabaseConfigured}
+            disabled={!canSubmit || submitting || !isBackendConfigured}
             onPress={handleSubmit}
           />
 
@@ -140,10 +221,10 @@ export default function SignIn() {
 
           <Button label="City employee? Request staff access" variant="ghost" onPress={() => router.push("/staff-request")} />
 
-          {!isSupabaseConfigured ? (
+          {!isBackendConfigured ? (
             <View style={styles.demoBox}>
               <Text style={styles.hint}>
-                No Supabase credentials configured — sign-in is disabled. You can still explore the app
+                Backend not configured — sign-in is disabled. You can still explore the app
                 in demo mode; nothing you do there is saved.
               </Text>
               <Button label="Continue in demo mode" variant="ghost" onPress={continueAsDemo} />

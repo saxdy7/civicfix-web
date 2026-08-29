@@ -20,8 +20,7 @@ const SEVERITY = v.union(v.literal("low"), v.literal("medium"), v.literal("high"
 /**
  * Records an AI triage result (called after the client-side /api/ai-triage
  * suggestion is shown) and, when confident enough, auto-routes a still-
- * unrouted fresh report to the matching department — mirrors
- * record_ai_assessment from the Supabase build.
+ * unrouted fresh report to the matching department.
  */
 export const record = mutation({
   args: {

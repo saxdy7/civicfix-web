@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Text, View, StyleSheet } from "react-native";
+import { Text, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Button } from "../components/Button";
-import { Card } from "../components/Card";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../lib/auth-context";
@@ -11,13 +10,15 @@ import { color, fontFamily, fontSize, spacing } from "../lib/theme";
 
 export default function ForgotPassword() {
   const router = useRouter();
-  const { requestPasswordReset } = useAuth();
+  const { requestPasswordReset, confirmPasswordReset } = useAuth();
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [pendingCode, setPendingCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
+  const handleRequest = async () => {
     if (!email.includes("@")) return setError("Enter a valid email address.");
     setError(null);
     setSubmitting(true);
@@ -27,19 +28,67 @@ export default function ForgotPassword() {
       setError(resetError);
       return;
     }
-    setSent(true);
+    setPendingCode(true);
   };
 
-  if (sent) {
+  const handleConfirm = async () => {
+    if (code.trim().length === 0) return setError("Enter the verification code.");
+    if (newPassword.length < 8) return setError("Password must be at least 8 characters.");
+    setError(null);
+    setSubmitting(true);
+    const { error: confirmError } = await confirmPasswordReset(code.trim(), newPassword);
+    setSubmitting(false);
+    if (confirmError) {
+      setError(confirmError);
+      return;
+    }
+    router.replace("/(tabs)");
+  };
+
+  if (pendingCode) {
     return (
       <ScreenContainer edges={["left", "right"]}>
-        <Card style={{ alignItems: "center", gap: spacing[2], marginTop: spacing[6] }}>
-          <Text style={styles.title}>Check your email</Text>
-          <Text style={styles.body}>
-            If an account exists for {email}, we sent a link to reset your password.
-          </Text>
-        </Card>
-        <Button label="Back to sign in" onPress={() => router.replace("/sign-in")} />
+        <Text style={styles.title}>Check your email</Text>
+        <Text style={styles.body}>
+          We sent a 6-digit verification code to {email}. Enter the code and your new password below.
+        </Text>
+
+        <TextField
+          label="Verification code"
+          placeholder="123456"
+          autoCapitalize="none"
+          autoComplete="one-time-code"
+          keyboardType="number-pad"
+          value={code}
+          onChangeText={setCode}
+        />
+
+        <TextField
+          label="New password"
+          placeholder="At least 8 characters"
+          isPassword
+          autoComplete="new-password"
+          value={newPassword}
+          onChangeText={setNewPassword}
+          hint="At least 8 characters."
+        />
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        <Button
+          label={submitting ? "Resetting…" : "Reset password and sign in"}
+          disabled={submitting || code.trim().length === 0 || newPassword.length < 8}
+          onPress={handleConfirm}
+        />
+
+        <Button
+          label="Try a different email"
+          variant="secondary"
+          onPress={() => {
+            setPendingCode(false);
+            setError(null);
+          }}
+        />
       </ScreenContainer>
     );
   }
@@ -48,7 +97,7 @@ export default function ForgotPassword() {
     <ScreenContainer edges={["left", "right"]}>
       <Text style={styles.title}>Reset your password</Text>
       <Text style={styles.body}>
-        Enter the email on your account and we'll send you a link to choose a new password.
+        Enter the email on your account and we'll send you a verification code to choose a new password.
       </Text>
 
       <TextField
@@ -64,10 +113,12 @@ export default function ForgotPassword() {
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <Button
-        label={submitting ? "Sending…" : "Send reset link"}
+        label={submitting ? "Sending…" : "Send verification code"}
         disabled={submitting || !email.includes("@")}
-        onPress={handleSubmit}
+        onPress={handleRequest}
       />
+
+      <Button label="Back to sign in" variant="ghost" onPress={() => router.replace("/sign-in")} />
     </ScreenContainer>
   );
 }

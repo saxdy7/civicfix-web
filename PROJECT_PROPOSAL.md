@@ -23,18 +23,18 @@ Residents lack visibility after reporting; departments receive incomplete or dup
 
 ## Product surfaces and shared identity
 
-The primary hackathon product is a **React Native + TypeScript** app (Expo recommended) for citizens and field workers: camera-first reporting, GPS, push notifications, assignment handling, and before/after evidence. The **Next.js + TypeScript** site is deliberately retained for the public live map and the administrator/auditor console. It uses shadcn/ui with CSS Modules and CSS variables - **no Tailwind CSS**.
+The primary hackathon product is a **React Native + TypeScript** app (Expo recommended) for citizens and field workers: camera-first reporting, GPS, push notifications, assignment handling, and before/after evidence. The **Next.js + TypeScript** site is deliberately retained for the public live map, resident portal, and the administrator/auditor console. It uses shadcn/ui patterns with CSS Modules and CSS variables - **no Tailwind CSS**.
 
-Both surfaces use **Supabase Auth** and one shared **Supabase PostgreSQL/PostGIS** project. They read and write the same canonical issue records, media references, notification history, and workflow events. There is no copied “mobile database” or “website database.” FastAPI validates the Supabase JWT and owns protected operational rules; Supabase RLS protects any tables exposed directly to authenticated clients. Service-role credentials remain server-only.
+Both surfaces use **Clerk** for authentication and one shared **Convex** real-time deployment. They read and write the same canonical issue records, media files, notification history, and workflow events. There is no copied “mobile database” or “website database.” Convex validates the Clerk JWT and enforces role-based access control server-side.
 
 ### MVP
 
 - Photo, category, description, and GPS/map-pin reporting.
 - Shared MapLibre GL issue map (MapCN patterns, free OpenStreetMap tiles, no API key) with clustering, filters, and an accessible list fallback.
-- React Native citizen/field-worker flows: camera/GPS reporting, citizen tracking, assignment acceptance, evidence capture, offline drafts, and Firebase Cloud Messaging (FCM) notifications.
-- Next.js website flows: public issue map, accessible list fallback, administrator queue, SLA analytics, and daily-audit console.
-- Admin triage, department routing, field-worker assignment, and resolution evidence.
-- PostgreSQL + PostGIS geospatial queries and nearby duplicate candidates.
+- React Native citizen/field-worker flows: camera/GPS reporting, citizen tracking, assignment acceptance, evidence capture, offline drafts, and push notifications.
+- Next.js website flows: public issue map, accessible list fallback, resident portal, administrator queue, SLA analytics, and daily-audit console.
+- Admin triage, department routing, field-worker assignment, and resolution evidence verification.
+- Real-time geospatial duplicate detection and nearby candidate matching.
 - Groq-powered structured category, severity, and concise complaint-summary suggestions, always reviewable by staff.
 - Daily audit dashboard for integrity, SLA, job, notification, storage, and privileged-access checks.
 
@@ -48,9 +48,9 @@ Both surfaces use **Supabase Auth** and one shared **Supabase PostgreSQL/PostGIS
 
 ## Architecture and data design
 
-The primary React Native + TypeScript app owns native camera, location, offline-draft, and FCM flows. The Next.js + TypeScript website uses shadcn/ui with CSS Modules and CSS variables - **no Tailwind CSS** - for public and staff web experiences. Supabase Auth supplies the one identity session to both clients, and Supabase PostgreSQL/PostGIS is their one shared database. FastAPI owns every protected business rule, authorization decision, AI call, PostGIS query, and audit event. MapLibre GL renders maps using MapCN composition patterns and free OpenStreetMap tiles, so no map credential is required. Groq is the first LLM provider and OpenRouter is an approved adapter alternative. FCM delivers pushes, while PostgreSQL remains the durable notification record. The website deploys to Vercel; FastAPI and background workers are managed services connected securely to Supabase.
+The primary React Native + TypeScript app owns native camera, location, offline-draft, and push notification flows. The Next.js + TypeScript website uses shadcn/ui patterns with CSS Modules and CSS variables - **no Tailwind CSS** - for public and staff web experiences. Clerk supplies the identity session to both clients, and Convex is their shared real-time database and document storage. Convex owns every protected business rule, authorization decision, mutation, and audit event. MapLibre GL renders maps using MapCN composition patterns and free OpenStreetMap tiles, so no map credential is required. Groq is the first LLM provider and OpenRouter is an approved adapter alternative. Convex delivers notifications and manages device tokens. The website deploys to Vercel and Convex deploys to its managed cloud.
 
-The core entity is `issues`, which stores category, lifecycle status, priority, department, and a PostGIS `geography(Point,4326)` location. Related tables preserve media, state events, assignments, resolution evidence, confirmations, AI assessments, notifications, device tokens, immutable audit logs, and job runs. Supabase Storage holds encrypted media, referenced by checksum and metadata. Full table and index details are in [`spec/ARCHITECTURE.md`](spec/ARCHITECTURE.md).
+The core entity is `issues`, which stores category, lifecycle status, priority, department, and coordinates. Related tables preserve media, state events, assignments, resolution evidence, community votes/comments, direct issue messages, AI assessments, notifications, device tokens, trust score events, and immutable audit logs. Convex Storage (`_storage`) holds media files, referenced by checksum and metadata. Full table details are in [`spec/ARCHITECTURE.md`](spec/ARCHITECTURE.md).
 
 ## AI and safety
 
@@ -87,7 +87,7 @@ At 02:00 UTC, an idempotent background job records a `daily_audit_runs` entry an
 
 ## Delivery phases
 
-1. **Foundation:** React Native/FastAPI contracts, shared Supabase Auth + PostgreSQL/PostGIS schema, RLS/RBAC, mobile camera/location permissions, and the MapLibre base map.
+1. **Foundation:** React Native/Next.js contracts, Clerk Auth + Convex schema, RBAC, mobile camera/location permissions, and the MapLibre base map.
 2. **Resolution loop:** mobile reporting/uploads, issue map, Next.js admin triage, mobile assignments/evidence, and shared status timeline.
 3. **Intelligence and reliability:** Groq adapter, duplicate candidates, FCM, jobs, audit logs, daily audit, metrics.
 4. **Polish:** accessibility review, mobile flow, privacy controls, test data, demo script, Vercel release pipeline.

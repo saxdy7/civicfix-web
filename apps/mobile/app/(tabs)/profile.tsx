@@ -63,8 +63,8 @@ export default function Profile() {
         </Text>
       </View>
       {/*
-        Role is intentionally read-only — granted only via user_roles in
-        Supabase by an administrator or the signup trigger. There is no
+        Role is intentionally read-only — granted only via userRoles in
+        Convex by an administrator or the signup trigger. There is no
         self-service way to change it here; that was the old build's most
         dangerous shortcut and it has been removed entirely.
       */}

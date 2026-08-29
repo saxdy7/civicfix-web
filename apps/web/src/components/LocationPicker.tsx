@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { GeolocateControl, Map as MapLibreMap, NavigationControl } from "maplibre-gl";
-import { OSM_TILE_STYLE } from "./mapcn/MapContainer";
+import { DEFAULT_MAP_STYLE } from "./mapcn/MapContainer";
 import styles from "./LocationPicker.module.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -84,7 +84,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
     try {
       map = new MapLibreMap({
         container: containerRef.current,
-        style: OSM_TILE_STYLE,
+        style: DEFAULT_MAP_STYLE,
         center: value ? [value.longitude, value.latitude] : DEFAULT_CENTER,
         zoom: 14,
       });

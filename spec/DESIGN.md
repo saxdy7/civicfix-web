@@ -6,7 +6,7 @@ Design for fast reporting, clear public accountability, human control over AI, c
 
 ## Platform and UI rules
 
-React Native + TypeScript is the primary hackathon client; Expo is recommended. Next.js + TypeScript is the website. The website uses shadcn/ui patterns, CSS Modules, and CSS variables. Tailwind CSS is prohibited in the website and is not introduced for mobile. Both clients use Supabase Auth and the same Supabase PostgreSQL/PostGIS database.
+React Native + TypeScript is the primary hackathon client; Expo is recommended. Next.js + TypeScript is the website. The website uses shadcn/ui patterns, CSS Modules, and CSS variables. Tailwind CSS is prohibited in the website and is not introduced for mobile. Both clients use Clerk Auth and the same Convex real-time deployment.
 
 Map components follow **MapCN** composition patterns on **MapLibre GL**. MapCN ships copy-paste components styled with Tailwind; those classes must be stripped and re-implemented as CSS Modules against the tokens below. Never introduce a Tailwind config, utility classes, or build dependency.
 
@@ -155,7 +155,7 @@ Loading uses skeletons and map progress with a list fallback. Empty states expla
 
 Label all AI suggestions as AI-assisted and make staff correction easy. Provide spam/unsafe-content reporting, moderation outcomes, and no public disclosure of reporter contact data.
 
-Never add Tailwind utilities, a Tailwind config, or Tailwind build dependencies — including when porting MapCN components. Adapt shadcn/ui patterns through CSS Modules and token variables on the website; use native React Native primitives on mobile. Every status visual includes text and exactly matches the architecture workflow. Every map-only action has a keyboard and list-based alternative. Supabase Auth remains the shared login path and the shared Supabase PostgreSQL/PostGIS project remains the only canonical application database.
+Never add Tailwind utilities, a Tailwind config, or Tailwind build dependencies — including when porting MapCN components. Adapt shadcn/ui patterns through CSS Modules and token variables on the website; use native React Native primitives on mobile. Every status visual includes text and exactly matches the architecture workflow. Every map-only action has a keyboard and list-based alternative. Clerk Auth remains the shared login path and Convex remains the canonical real-time application database.
 
 ---
 
@@ -165,9 +165,9 @@ Two populations use CivicFix and they must **never** share a registration path.
 
 ## Residents — self-serve
 
-1. Sign up at `/sign-up` with name, email and password (or Google).
+1. Sign up at `/sign-up` with name, email and password.
 2. Accept terms, privacy policy and consented location collection.
-3. Email is verified; the account is immediately usable.
+3. Email is verified via 6-digit code; the account is immediately usable.
 4. Role is always `citizen`. It cannot be elevated from the client under any circumstance.
 
 Residents can report, track their own reports, confirm a neighbour's report, and receive
@@ -185,7 +185,7 @@ most dangerous failure mode in a civic system, so the flow is request → verify
 3. The request lands in `/admin/access-requests` as `pending`.
 4. An existing administrator verifies the employee ID against the department roster, then
    approves or rejects.
-5. On approval the role is granted and an append-only `audit_logs` entry records the approver,
+5. On approval the role is granted and an append-only `auditLogs` entry records the approver,
    the subject, the role granted, and the timestamp. On rejection the applicant is emailed.
 
 `administrator` and `auditor` roles are **never** requestable through the UI. They are granted
@@ -205,6 +205,6 @@ only by an existing administrator from `/admin/users`, and are equally audit-log
 
 ### Authorization boundary
 
-Role checks are enforced in FastAPI against the verified Supabase JWT and the `user_roles`
-table. Authorization never relies on `user_metadata`, which the user can edit. RLS policies
-provide defence in depth on any table exposed directly to clients.
+Role checks are enforced in Convex mutations/queries against the verified Clerk JWT and the
+`userRoles` table. Authorization never relies on user-editable metadata. Convex server-side
+checks provide defense in depth across all mutations and queries.

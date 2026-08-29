@@ -25,3 +25,30 @@ export const create = mutation({
     return await ctx.db.insert("departments", { ...args, createdAt: Date.now() });
   },
 });
+
+export const seedDefaults = mutation({
+  args: { secret: v.string() },
+  handler: async (ctx, args) => {
+    const expected = process.env.SEED_ADMIN_SECRET;
+    if (!expected || args.secret !== expected) {
+      throw new Error("Invalid seed secret");
+    }
+    const existing = await ctx.db.query("departments").collect();
+    if (existing.length > 0) return existing.map((d) => d._id);
+
+    const now = Date.now();
+    const defaults = [
+      { name: "Public Works & Infrastructure", categories: ["pothole" as const], slaHours: 48 },
+      { name: "Sanitation & Waste Management", categories: ["garbage" as const], slaHours: 24 },
+      { name: "Electrical & Public Lighting", categories: ["streetlight" as const], slaHours: 36 },
+      { name: "General Civic Services", categories: ["other" as const], slaHours: 72 },
+    ];
+
+    const ids = [];
+    for (const d of defaults) {
+      const id = await ctx.db.insert("departments", { ...d, createdAt: now });
+      ids.push(id);
+    }
+    return ids;
+  },
+});

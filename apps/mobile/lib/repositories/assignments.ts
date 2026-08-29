@@ -36,9 +36,10 @@ function mapAssignment(row: AssignmentWithIssue): Assignment {
 /** Every assignment for the signed-in field worker, most recently created first. */
 export async function fetchMyAssignments(_workerId: string): Promise<Assignment[]> {
   if (!convexClient) return DEMO_ASSIGNMENTS;
-  const rows = await convexClient.query(api.assignments.myAssignments, {});
+  const client = convexClient;
+  const rows = await client.query(api.assignments.myAssignments, {});
   const withIssues = await Promise.all(
-    rows.map(async (row) => ({ ...row, issue: await convexClient.query(api.issues.getById, { issueId: row.issueId }) })),
+    rows.map(async (row) => ({ ...row, issue: await client.query(api.issues.getById, { issueId: row.issueId }) })),
   );
   return withIssues.sort((a, b) => b.createdAt - a.createdAt).map(mapAssignment);
 }
@@ -91,7 +92,7 @@ async function uploadEvidencePhoto(issueId: string, photo: CapturedPhoto): Promi
  * Uploads before/after photos as issueMedia, then submits resolutionEvidence
  * in one Convex mutation — which itself marks the assignment's
  * `completedAt` and advances the issue to `pending_verification`
- * server-side (all three used to be four separate Supabase writes).
+ * server-side.
  */
 export async function submitResolutionEvidence(params: {
   assignmentId: string;

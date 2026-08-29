@@ -56,9 +56,7 @@ export const myVotes = query({
  * One vote per resident per issue (upsert, so changing your mind is a
  * plain re-vote). Reporters can't vote on their own issue. At
  * VOTE_THRESHOLD+ total votes on a pending_verification issue, a strict
- * majority auto-resolves or auto-reopens it — the same rule the Supabase
- * build used, now expressed as plain application logic instead of a SQL
- * function, since Convex mutations are already transactional.
+ * majority auto-resolves or auto-reopens it.
  */
 export const cast = mutation({
   args: { issueId: v.id("issues"), vote: v.union(v.literal("completed"), v.literal("needs_work")), comment: v.optional(v.string()) },

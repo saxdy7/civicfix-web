@@ -19,6 +19,7 @@ import type * as issueMessages from "../issueMessages.js";
 import type * as issues from "../issues.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as notifications from "../notifications.js";
+import type * as push from "../push.js";
 import type * as resolutionEvidence from "../resolutionEvidence.js";
 import type * as staffAccessRequests from "../staffAccessRequests.js";
 import type * as users from "../users.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   issues: typeof issues;
   "lib/auth": typeof lib_auth;
   notifications: typeof notifications;
+  push: typeof push;
   resolutionEvidence: typeof resolutionEvidence;
   staffAccessRequests: typeof staffAccessRequests;
   users: typeof users;

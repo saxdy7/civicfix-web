@@ -1,6 +1,6 @@
-// Used ONLY when EXPO_PUBLIC_SUPABASE_URL/ANON_KEY are absent (see
-// lib/supabase.ts `isSupabaseConfigured`). Every repository function checks
-// that flag and falls back to these fixtures instead of querying Supabase —
+// Used ONLY when EXPO_PUBLIC_CONVEX_URL/EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY are absent (see
+// lib/convex-client.ts `isConvexConfigured`). Every repository function checks
+// that flag and falls back to these fixtures instead of querying Convex —
 // they exist so the app is still explorable with zero configuration, never
 // as a silent substitute for a failed real query. components/DemoBanner.tsx
 // keeps this visibly labelled wherever it's shown, and tracking IDs are

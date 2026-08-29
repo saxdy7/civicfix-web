@@ -70,9 +70,8 @@ export interface CapturedPhoto {
 /**
  * Uploads directly to Convex file storage: get a one-time upload URL, POST
  * the file bytes to it, then link the resulting storage id to the issue.
- * Unlike the old Supabase flow, the issue must already exist — Convex's
- * issueMedia.save() requires a real issueId, so this always runs *after*
- * createIssue(), never before.
+ * The issue must already exist — Convex's issueMedia.save() requires a real
+ * issueId, so this always runs *after* createIssue(), never before.
  */
 export async function uploadIssuePhoto(issueId: string, photo: CapturedPhoto): Promise<{ error: string | null }> {
   if (!convexClient) return { error: null };

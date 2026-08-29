@@ -19,7 +19,7 @@ import type { Coordinates, MapViewport } from "./types";
 import styles from "./MapContainer.module.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-// Keyless OSM Tiles configuration
+// Keyless OSM Tiles configuration (fallback when no Mapbox token is set)
 export const OSM_TILE_STYLE = {
   version: 8 as const,
   sources: {
@@ -32,6 +32,13 @@ export const OSM_TILE_STYLE = {
   },
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
 };
+
+const mapboxToken =
+  process.env.NEXT_PUBLIC_MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+
+export const DEFAULT_MAP_STYLE = mapboxToken
+  ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11?access_token=${mapboxToken}`
+  : OSM_TILE_STYLE;
 
 interface MapContextValue {
   map: MapLibreMap | null;
@@ -101,7 +108,7 @@ export function MapContainer({
     try {
       mapInstance = new MapLibreMap({
         container: containerRef.current,
-        style: OSM_TILE_STYLE,
+        style: DEFAULT_MAP_STYLE,
         center,
         zoom,
         pitch,

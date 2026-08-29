@@ -8,7 +8,7 @@ interface TokenCache {
 
 /**
  * iOS Keychain / Android Keystore — not plain AsyncStorage — for Clerk's
- * session JWTs, same rationale the old Supabase SecureStore adapter used.
+ * session JWTs.
  * expo-secure-store has no web implementation (calling it throws), and web
  * is not a target platform for this app — `expo start --web` is still a
  * common local dev-preview workflow, so the cache is a safe no-op there

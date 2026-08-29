@@ -9,14 +9,8 @@ import { ScreenContainer } from "../../../components/ScreenContainer";
 import { TextField } from "../../../components/TextField";
 import { useAuth } from "../../../lib/auth-context";
 import { fetchAssignmentById, submitResolutionEvidence } from "../../../lib/repositories/assignments";
+import type { CapturedPhoto } from "../../../lib/repositories/issues";
 import { color, fontSize, spacing } from "../../../lib/theme";
-
-interface CapturedPhoto {
-  uri: string;
-  base64: string;
-  contentType: string;
-  extension: string;
-}
 
 async function capturePhoto(): Promise<CapturedPhoto | null> {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -27,8 +21,7 @@ async function capturePhoto(): Promise<CapturedPhoto | null> {
   return {
     uri: asset.uri,
     base64: asset.base64,
-    contentType: asset.mimeType ?? "image/jpeg",
-    extension: (asset.uri.split(".").pop() || "jpg").toLowerCase(),
+    mimeType: asset.mimeType ?? "image/jpeg",
   };
 }
 

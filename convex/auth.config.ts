@@ -6,7 +6,9 @@
 export default {
   providers: [
     {
-      domain: process.env.CLERK_JWT_ISSUER_DOMAIN,
+      domain:
+        process.env.CLERK_JWT_ISSUER_DOMAIN ||
+        "https://dashing-mustang-3814.clerk.accounts.dev",
       applicationID: "convex",
     },
   ],
