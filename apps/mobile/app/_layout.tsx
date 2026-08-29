@@ -60,6 +60,7 @@ export default function RootLayout() {
             <Stack.Screen name="landing" options={{ headerShown: false }} />
             <Stack.Screen name="sign-in" options={{ headerShown: false }} />
             <Stack.Screen name="forgot-password" options={{ title: "Reset password" }} />
+            <Stack.Screen name="staff-request" options={{ title: "Staff access" }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="report/confirmation" options={{ headerShown: false }} />
             <Stack.Screen name="reports/[id]" options={{ title: "Report status" }} />

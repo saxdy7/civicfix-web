@@ -118,6 +118,16 @@ export default function Profile() {
         </Card>
       </View>
 
+      {user.role !== "field_worker" ? (
+        <View style={styles.section}>
+          <Button
+            label="Municipal employee? Request staff access"
+            variant="secondary"
+            onPress={() => router.push("/staff-request")}
+          />
+        </View>
+      ) : null}
+
       <View style={styles.section}>
         <Button
           label="Accessibility & privacy details"

@@ -136,6 +136,8 @@ export default function SignIn() {
             }}
           />
 
+          <Button label="City employee? Request staff access" variant="ghost" onPress={() => router.push("/staff-request")} />
+
           {!isSupabaseConfigured ? (
             <View style={styles.demoBox}>
               <Text style={styles.hint}>

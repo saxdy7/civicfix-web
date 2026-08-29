@@ -69,7 +69,7 @@ export default function NotificationsScreen() {
 
   if (notifications === null) {
     return (
-      <ScreenContainer>
+      <ScreenContainer edges={["left", "right"]}>
         <ActivityIndicator color={color.civicBlue} />
       </ScreenContainer>
     );
