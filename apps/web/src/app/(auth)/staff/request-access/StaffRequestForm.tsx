@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@civicfix/ui-web";
@@ -39,7 +40,16 @@ interface StaffRequestFormProps {
 }
 
 export function StaffRequestForm({ session, departments }: StaffRequestFormProps) {
+  const router = useRouter();
   const pending = session ? loadPending() : null;
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    if (!supabase) return;
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    router.refresh();
+  };
 
   const [name, setName] = useState(pending?.fullName ?? "");
   const [email, setEmail] = useState(session?.email ?? "");
@@ -210,6 +220,39 @@ export function StaffRequestForm({ session, departments }: StaffRequestFormProps
               <Link href="/sign-up">Create a resident account</Link> instead.
             </p>
           </div>
+
+          {session ? (
+            <div
+              className={styles.checkboxRow}
+              style={{
+                alignItems: "center",
+                background: "var(--color-surface-muted)",
+                borderRadius: "var(--radius-control)",
+                padding: "var(--space-3)",
+              }}
+            >
+              <span>
+                Signed in as <strong>{session.email}</strong> — this request attaches to that
+                account, so there&apos;s no password to enter here.{" "}
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  disabled={signingOut}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    color: "var(--color-civic-blue)",
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                    font: "inherit",
+                  }}
+                >
+                  {signingOut ? "Signing out…" : "Not you? Sign out"}
+                </button>
+              </span>
+            </div>
+          ) : null}
 
           <div className={styles.field}>
             <label className={styles.label} htmlFor="name">
