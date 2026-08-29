@@ -7,12 +7,12 @@ import { Card } from "@civicfix/ui-web";
 
 import { IssueMap } from "@/components/IssueMap";
 import { StatusPill } from "@/components/StatusPill";
-import { CATEGORY_LABEL } from "@/lib/status";
-import type { Issue, IssueCategory } from "@/lib/types";
+import { CATEGORY_LABEL, SEVERITY_LABEL, STATUS_SHORT_LABEL } from "@/lib/status";
+import type { Issue, IssueCategory, IssueSeverity, IssueStatus } from "@/lib/types";
 
 import styles from "./page.module.css";
 
-const FILTERS: { key: IssueCategory | "all"; label: string }[] = [
+const CATEGORY_FILTERS: { key: IssueCategory | "all"; label: string }[] = [
   { key: "all", label: "All" },
   { key: "pothole", label: "Potholes" },
   { key: "garbage", label: "Garbage" },
@@ -20,13 +20,33 @@ const FILTERS: { key: IssueCategory | "all"; label: string }[] = [
   { key: "other", label: "Other" },
 ];
 
+const SEVERITY_FILTERS: (IssueSeverity | "all")[] = ["all", "low", "medium", "high", "critical"];
+const STATUS_FILTERS: (IssueStatus | "all")[] = [
+  "all",
+  "reported",
+  "triaged",
+  "assigned",
+  "in_progress",
+  "pending_verification",
+  "resolved",
+  "reopened",
+];
+
 export function MapExplorer({ issues }: { issues: Issue[] }) {
   const [filter, setFilter] = useState<IssueCategory | "all">("all");
+  const [severityFilter, setSeverityFilter] = useState<IssueSeverity | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<IssueStatus | "all">("all");
   const [selectedId, setSelectedId] = useState<string | undefined>();
 
   const filtered = useMemo(
-    () => (filter === "all" ? issues : issues.filter((issue) => issue.category === filter)),
-    [filter, issues],
+    () =>
+      issues.filter(
+        (issue) =>
+          (filter === "all" || issue.category === filter) &&
+          (severityFilter === "all" || issue.severity === severityFilter) &&
+          (statusFilter === "all" || issue.status === statusFilter),
+      ),
+    [filter, severityFilter, statusFilter, issues],
   );
 
   const handleSelect = useCallback((issueId: string) => setSelectedId(issueId), []);
@@ -36,7 +56,7 @@ export function MapExplorer({ issues }: { issues: Issue[] }) {
       <IssueMap issues={filtered} onSelect={handleSelect} selectedId={selectedId} />
 
       <div className={styles.filters}>
-        {FILTERS.map((item) => (
+        {CATEGORY_FILTERS.map((item) => (
           <button
             key={item.key}
             type="button"
@@ -50,6 +70,35 @@ export function MapExplorer({ issues }: { issues: Issue[] }) {
         <span className={styles.count}>
           {filtered.length} {filtered.length === 1 ? "report" : "reports"}
         </span>
+      </div>
+
+      <div className={styles.filters}>
+        <select
+          value={severityFilter}
+          onChange={(e) => setSeverityFilter(e.target.value as IssueSeverity | "all")}
+          className={styles.filterChip}
+          aria-label="Filter by severity"
+        >
+          <option value="all">Any severity</option>
+          {SEVERITY_FILTERS.filter((s) => s !== "all").map((s) => (
+            <option key={s} value={s}>
+              {SEVERITY_LABEL[s]} severity
+            </option>
+          ))}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as IssueStatus | "all")}
+          className={styles.filterChip}
+          aria-label="Filter by status"
+        >
+          <option value="all">Any status</option>
+          {STATUS_FILTERS.filter((s) => s !== "all").map((s) => (
+            <option key={s} value={s}>
+              {STATUS_SHORT_LABEL[s]}
+            </option>
+          ))}
+        </select>
       </div>
 
       {filtered.length === 0 ? (

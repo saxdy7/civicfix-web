@@ -1,28 +1,16 @@
 "use client";
 
-import { Map as MapLibreMap, NavigationControl } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
-
+import { GeolocateControl, Map as MapLibreMap, NavigationControl } from "maplibre-gl";
+import { OSM_TILE_STYLE } from "./mapcn/MapContainer";
 import styles from "./LocationPicker.module.css";
-
 import "maplibre-gl/dist/maplibre-gl.css";
-
-const TILE_STYLE = {
-  version: 8 as const,
-  sources: {
-    osm: {
-      type: "raster" as const,
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
-};
 
 export interface PickedLocation {
   latitude: number;
   longitude: number;
+  address?: string;
+  neighborhood?: string;
 }
 
 interface LocationPickerProps {
@@ -39,11 +27,55 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
   const errorCountRef = useRef(0);
   const [failed, setFailed] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
+  const [addressLabel, setAddressLabel] = useState<string | null>(value?.address ?? null);
+  const [resolvingAddress, setResolvingAddress] = useState(false);
+  const reverseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Keep the latest callback without re-initialising the map.
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  // Reverse geocode lat/lng to human-readable address
+  const fetchAddress = (lat: number, lng: number) => {
+    if (reverseTimerRef.current) clearTimeout(reverseTimerRef.current);
+    reverseTimerRef.current = setTimeout(async () => {
+      setResolvingAddress(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+          { headers: { "Accept-Language": "en" } },
+        );
+        if (!res.ok) throw new Error("Reverse geocode failed");
+        const data = await res.json();
+        const street =
+          data.address?.road ||
+          data.address?.pedestrian ||
+          data.address?.suburb ||
+          data.address?.neighbourhood ||
+          "Pinned Location";
+        const neighborhood =
+          data.address?.neighbourhood ||
+          data.address?.suburb ||
+          data.address?.city_district ||
+          data.address?.city ||
+          "Civic Zone";
+
+        const fullAddr = `${street}, ${neighborhood}`;
+        setAddressLabel(fullAddr);
+        onChangeRef.current({
+          latitude: lat,
+          longitude: lng,
+          address: fullAddr,
+          neighborhood,
+        });
+      } catch {
+        // Fallback without address
+        onChangeRef.current({ latitude: lat, longitude: lng });
+      } finally {
+        setResolvingAddress(false);
+      }
+    }, 450);
+  };
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -52,7 +84,7 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
     try {
       map = new MapLibreMap({
         container: containerRef.current,
-        style: TILE_STYLE,
+        style: OSM_TILE_STYLE,
         center: value ? [value.longitude, value.latitude] : DEFAULT_CENTER,
         zoom: 14,
       });
@@ -62,30 +94,28 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
     }
 
     map.addControl(new NavigationControl({ showCompass: false }), "bottom-right");
-    // A single failed/rate-limited OSM tile fires the same "error" event as a
-    // fatal style failure — only fall back once errors pile up faster than
-    // one bad tile, so shared/venue-network tile throttling doesn't kill the
-    // whole picker.
+    map.addControl(new GeolocateControl({ trackUserLocation: false }), "top-right");
+
     map.on("error", () => {
       errorCountRef.current += 1;
-      if (errorCountRef.current > 6) setFailed(true);
+      if (errorCountRef.current > 8) setFailed(true);
     });
 
-    // The pin is fixed at the centre; panning the map picks the location.
     const publish = () => {
       const c = map.getCenter();
-      onChangeRef.current({ latitude: c.lat, longitude: c.lng });
+      fetchAddress(c.lat, c.lng);
     };
+
     map.on("moveend", publish);
     map.once("load", publish);
 
     mapRef.current = map;
 
     return () => {
+      if (reverseTimerRef.current) clearTimeout(reverseTimerRef.current);
       map.remove();
       mapRef.current = null;
     };
-    // Intentionally mount-only: re-running would tear down the user's pan.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -105,8 +135,8 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
       (err) => {
         setGeoError(
           err.code === err.PERMISSION_DENIED
-            ? "Location permission denied — drag the map to set the pin instead."
-            : "Couldn't get your location — drag the map to set the pin instead.",
+            ? "Location permission denied — drag map to set the pin."
+            : "Couldn't get GPS location — drag map to set pin.",
         );
       },
       { enableHighAccuracy: true, timeout: 8000 },
@@ -131,12 +161,18 @@ export function LocationPicker({ value, onChange }: LocationPickerProps) {
             📍
           </span>
           <button type="button" className={styles.locateButton} onClick={locateMe}>
-            Use my location
+            📍 Use my GPS
           </button>
           {geoError ? <span className={styles.coords}>{geoError}</span> : null}
           {value ? (
             <span className={styles.coords}>
-              {value.latitude.toFixed(5)}, {value.longitude.toFixed(5)}
+              {resolvingAddress ? (
+                "Resolving address…"
+              ) : addressLabel ? (
+                `📍 ${addressLabel}`
+              ) : (
+                `${value.latitude.toFixed(5)}, ${value.longitude.toFixed(5)}`
+              )}
             </span>
           ) : null}
         </>

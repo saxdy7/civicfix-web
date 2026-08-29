@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { CivicBotWidget } from "@/components/chatbot";
 
 import styles from "./PublicShell.module.css";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
   { href: "/map", label: "Live Map" },
+  { href: "/transparency", label: "Transparency" },
   { href: "/how-it-works", label: "How It Works" },
   { href: "/accessibility", label: "Accessibility" },
 ];
@@ -63,6 +65,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
           </p>
         </div>
       </footer>
+      <CivicBotWidget />
     </div>
   );
 }

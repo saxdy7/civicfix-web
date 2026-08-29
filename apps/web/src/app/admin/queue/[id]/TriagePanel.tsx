@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Badge, Button, Card } from "@civicfix/ui-web";
 
 import { ALLOWED_NEXT_STATUS } from "@/lib/admin-mappers";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { CATEGORY_LABEL } from "@/lib/status";
-import type { Issue, IssueCategory } from "@/lib/types";
+import { CATEGORY_LABEL, STATUS_SHORT_LABEL } from "@/lib/status";
+import type { Issue, IssueCategory, IssueStatus } from "@/lib/types";
 
 import styles from "../../admin.module.css";
 
@@ -33,6 +33,14 @@ interface WorkerOption {
   name: string;
 }
 
+interface SimilarIssue {
+  id: string;
+  tracking_id: string;
+  description: string;
+  status: IssueStatus;
+  distance_m: number;
+}
+
 export function TriagePanel({
   issue,
   duplicateIssue,
@@ -54,6 +62,21 @@ export function TriagePanel({
   const [dupTrackingId, setDupTrackingId] = useState("");
   const [dupBusy, setDupBusy] = useState(false);
   const [dupError, setDupError] = useState<string | null>(null);
+  const [similarIssues, setSimilarIssues] = useState<SimilarIssue[]>([]);
+
+  useEffect(() => {
+    if (!supabase || duplicateIssue) return;
+    supabase
+      .rpc("find_nearby_similar_issues", {
+        p_latitude: issue.latitude,
+        p_longitude: issue.longitude,
+        p_category: issue.category,
+        p_radius_m: 200,
+        p_exclude_issue_id: issue.id,
+      })
+      .then(({ data }) => setSimilarIssues((data as SimilarIssue[] | null) ?? []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issue.id]);
 
   const [departmentId, setDepartmentId] = useState<string>(
     departments.find((d) => d.name === issue.department)?.id ?? "",
@@ -156,7 +179,7 @@ export function TriagePanel({
         <Card style={{ marginBottom: "var(--space-4)" }}>
           <h2 className={styles.sectionTitle}>AI-assisted suggestion</h2>
           <p style={{ margin: 0, fontSize: "var(--font-size-sm)", color: "var(--color-muted-foreground)" }}>
-            Not available yet — the AI analysis job that would populate this hasn&apos;t been built.
+            No AI assessment on file — this report was likely filed without using the AI-assist step.
           </p>
         </Card>
       )}
@@ -169,10 +192,44 @@ export function TriagePanel({
           </p>
         ) : canMarkDuplicate ? (
           <>
-            <p style={{ margin: "0 0 var(--space-3)", fontSize: "var(--font-size-sm)", color: "var(--color-muted-foreground)" }}>
-              There is no automated duplicate detection yet — if you recognize this as a repeat of another
-              report, link it manually by tracking ID.
-            </p>
+            {similarIssues.length > 0 ? (
+              <div style={{ marginBottom: "var(--space-3)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+                <p style={{ margin: 0, fontSize: "var(--font-size-sm)", color: "var(--color-muted-foreground)" }}>
+                  Nearby reports of the same category — possible duplicates:
+                </p>
+                {similarIssues.map((s) => (
+                  <div
+                    key={s.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "var(--space-2)",
+                      padding: "var(--space-2) var(--space-3)",
+                      borderRadius: "var(--radius-control)",
+                      background: "var(--color-surface-muted)",
+                    }}
+                  >
+                    <span style={{ fontSize: "var(--font-size-sm)" }}>
+                      <strong>{s.tracking_id}</strong> · {STATUS_SHORT_LABEL[s.status]} · ~{Math.round(s.distance_m)}m — {s.description.slice(0, 60)}
+                      {s.description.length > 60 ? "…" : ""}
+                    </span>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setDupTrackingId(s.tracking_id)}
+                      disabled={dupBusy}
+                    >
+                      Use this
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ margin: "0 0 var(--space-3)", fontSize: "var(--font-size-sm)", color: "var(--color-muted-foreground)" }}>
+                No nearby similar reports found. If you still recognize this as a repeat, link it manually by
+                tracking ID.
+              </p>
+            )}
             <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
               <input
                 value={dupTrackingId}

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { NotificationsLiveRefresh } from "@/components/NotificationsLiveRefresh";
 import { ResidentShell } from "@/components/ResidentShell";
 import { createServerSupabase, getSessionProfile } from "@/lib/supabase-server";
 
@@ -32,6 +33,7 @@ export default async function ResidentLayout({ children }: { children: ReactNode
 
   return (
     <ResidentShell user={user} counts={counts}>
+      {session ? <NotificationsLiveRefresh userId={session.userId} /> : null}
       {children}
     </ResidentShell>
   );

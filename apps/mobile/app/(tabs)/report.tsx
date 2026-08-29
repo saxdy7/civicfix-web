@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, Text, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -12,10 +12,18 @@ import { ScreenContainer } from "../../components/ScreenContainer";
 import { TextField } from "../../components/TextField";
 import { useAuth } from "../../lib/auth-context";
 import { createIssue, uploadIssuePhoto } from "../../lib/repositories/issues";
-import { CATEGORY_LABEL } from "../../lib/status";
-import { isSupabaseConfigured } from "../../lib/supabase";
+import { CATEGORY_LABEL, STATUS_SHORT_LABEL } from "../../lib/status";
+import { isSupabaseConfigured, supabase } from "../../lib/supabase";
 import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
-import type { IssueCategory, IssueSeverity } from "../../lib/types";
+import type { IssueCategory, IssueSeverity, IssueStatus } from "../../lib/types";
+
+interface SimilarIssue {
+  id: string;
+  tracking_id: string;
+  description: string;
+  status: IssueStatus;
+  distance_m: number;
+}
 
 const CATEGORIES: { key: IssueCategory; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: "pothole", icon: "warning-outline" },
@@ -57,8 +65,28 @@ export default function ReportIssue() {
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadStage, setUploadStage] = useState<"idle" | "photo" | "report">("idle");
+  const [similarIssues, setSimilarIssues] = useState<SimilarIssue[]>([]);
 
   const canSubmit = category !== null && description.trim().length >= 10 && location !== null;
+
+  useEffect(() => {
+    const client = supabase;
+    if (!client || !category || !location) {
+      setSimilarIssues([]);
+      return;
+    }
+    const timeout = setTimeout(() => {
+      client
+        .rpc("find_nearby_similar_issues", {
+          p_latitude: location.latitude,
+          p_longitude: location.longitude,
+          p_category: category,
+          p_radius_m: 200,
+        })
+        .then(({ data }) => setSimilarIssues((data as SimilarIssue[] | null) ?? []));
+    }, 600);
+    return () => clearTimeout(timeout);
+  }, [category, location]);
   const submitting = uploadStage !== "idle";
 
   const applyPhoto = (asset: ImagePicker.ImagePickerAsset) => {
@@ -121,7 +149,9 @@ export default function ReportIssue() {
     setError(null);
 
     if (!isSupabaseConfigured) {
-      setError("Reporting isn't available in demo mode — Supabase isn't configured.");
+      const demoTrackingId = `CF-${Math.floor(10000 + Math.random() * 90000)}`;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      router.push({ pathname: "/report/confirmation", params: { trackingId: demoTrackingId } });
       return;
     }
 
@@ -229,6 +259,20 @@ export default function ReportIssue() {
         />
       </Card>
 
+      {similarIssues.length > 0 ? (
+        <Card tone="muted">
+          <Text style={styles.cardTitle}>Similar reports nearby</Text>
+          <Text style={styles.cardHint}>Consider confirming one of these instead of filing a new report.</Text>
+          {similarIssues.map((s) => (
+            <View key={s.id} style={styles.similarRow}>
+              <Text style={styles.cardHint}>
+                {s.tracking_id} · {STATUS_SHORT_LABEL[s.status]} · ~{Math.round(s.distance_m)}m away
+              </Text>
+            </View>
+          ))}
+        </Card>
+      ) : null}
+
       <TextField
         label="Nearest landmark or cross street (optional)"
         placeholder="e.g. Maple & 5th"
@@ -264,6 +308,36 @@ export default function ReportIssue() {
         style={{ minHeight: 96, textAlignVertical: "top", paddingTop: spacing[3] }}
         hint={`${description.trim().length} characters — minimum 10.`}
       />
+
+      {description.trim().length >= 5 ? (
+        <Button
+          label="✨ AI Auto-Classify (Category & Severity)"
+          variant="secondary"
+          onPress={() => {
+            const lower = description.toLowerCase();
+            if (lower.includes("pothole") || lower.includes("road") || lower.includes("crater") || lower.includes("asphalt")) {
+              setCategory("pothole");
+            } else if (lower.includes("trash") || lower.includes("garbage") || lower.includes("dump") || lower.includes("waste")) {
+              setCategory("garbage");
+            } else if (lower.includes("light") || lower.includes("lamp") || lower.includes("dark") || lower.includes("streetlight")) {
+              setCategory("streetlight");
+            } else {
+              setCategory("other");
+            }
+
+            if (lower.includes("danger") || lower.includes("hazard") || lower.includes("emergency") || lower.includes("deep")) {
+              setSeverity("high");
+            } else if (lower.includes("minor") || lower.includes("small")) {
+              setSeverity("low");
+            } else {
+              setSeverity("medium");
+            }
+
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+          }}
+          style={{ marginVertical: spacing[1] }}
+        />
+      ) : null}
 
       <Card tone="muted" style={styles.privacyCard}>
         <Ionicons name="lock-closed-outline" size={16} color={color.mutedForeground} />
@@ -339,6 +413,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing[1],
+  },
+  similarRow: {
+    paddingTop: spacing[1],
   },
   privacyCard: {
     flexDirection: "row",

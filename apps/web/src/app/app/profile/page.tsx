@@ -1,8 +1,24 @@
 import { Badge, Card } from "@civicfix/ui-web";
 
+import { getSessionProfile } from "@/lib/supabase-server";
+
 import styles from "../resident.module.css";
 
-export default function ResidentProfilePage() {
+const ROLE_LABEL: Record<string, string> = {
+  administrator: "Administrator",
+  department_manager: "Department manager",
+  field_worker: "Field worker",
+  auditor: "Auditor",
+};
+
+function primaryRoleLabel(roles: string[]): string {
+  const staffRole = roles.find((r) => r in ROLE_LABEL);
+  return staffRole ? ROLE_LABEL[staffRole] : "Resident";
+}
+
+export default async function ResidentProfilePage() {
+  const session = await getSessionProfile();
+
   return (
     <div>
       <div className={styles.pageHeader}>
@@ -16,21 +32,28 @@ export default function ResidentProfilePage() {
         <h2 className={styles.sectionTitle}>Account</h2>
         <div className={styles.sideStat}>
           <span className={styles.sideStatLabel}>Name</span>
-          <span>Amara Okonkwo</span>
+          <span>{session?.name ?? "Resident"}</span>
         </div>
         <div className={styles.sideStat}>
           <span className={styles.sideStatLabel}>Email</span>
-          <span>amara@example.com</span>
+          <span>{session?.email ?? "—"}</span>
         </div>
         <div className={styles.sideStat}>
           <span className={styles.sideStatLabel}>Role</span>
           <span>
-            <Badge tone="neutral">Resident</Badge>
+            <Badge tone="neutral">{session ? primaryRoleLabel(session.roles) : "Resident"}</Badge>
           </span>
         </div>
         <div className={styles.sideStat}>
           <span className={styles.sideStatLabel}>Member since</span>
-          <span>August 2026</span>
+          <span>
+            {session
+              ? new Date(session.createdAt).toLocaleDateString(undefined, {
+                  month: "long",
+                  year: "numeric",
+                })
+              : "—"}
+          </span>
         </div>
       </Card>
 

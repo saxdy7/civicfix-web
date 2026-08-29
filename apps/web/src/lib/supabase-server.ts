@@ -43,6 +43,7 @@ export interface SessionProfile {
   roles: string[];
   isStaff: boolean;
   isAdmin: boolean;
+  createdAt: string;
 }
 
 /** Resolves the signed-in user's profile + roles, or null if unauthenticated/unconfigured. */
@@ -69,5 +70,6 @@ export async function getSessionProfile(): Promise<SessionProfile | null> {
     roles,
     isStaff: roles.some((r) => STAFF_ROLES.includes(r)),
     isAdmin: roles.includes("administrator"),
+    createdAt: user.created_at,
   };
 }

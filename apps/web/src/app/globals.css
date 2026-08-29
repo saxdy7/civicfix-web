@@ -79,6 +79,46 @@
   --l-font-display: var(--font-display);
 }
 
+/* ---- Light theme override ---- */
+/* Applied via a `data-theme="light"` attribute on the resident/admin
+   dashboard shell root — never on `:root`/`html`, so the landing page and
+   sign-in/sign-up (which read the dark tokens above directly) are never
+   affected. Every component already reads these same custom property
+   names, so this cascades into all of them with no per-component changes. */
+[data-theme="light"] {
+  --color-background: #f6f6f7;
+  --color-background-muted: #eeeef0;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f2f2f4;
+  --color-surface-raised: #e8e8eb;
+
+  --color-foreground: #131316;
+  --color-muted-foreground: #6b6b70;
+  --color-dim-foreground: #9a9aa0;
+
+  --color-border: rgba(0, 0, 0, 0.1);
+  --color-border-strong: rgba(0, 0, 0, 0.18);
+
+  /* Inverse = the dark side here — primary buttons stay solid dark on
+     white, mirroring how they're solid white on black in the dark theme. */
+  --color-inverse-background: #131316;
+  --color-inverse-foreground: #ffffff;
+
+  --color-pill-dark: #ececee;
+
+  /* Dark-theme accents are light pastel tints tuned for a black background;
+     on white they'd fail contrast, so light theme gets darker, more
+     saturated equivalents instead. */
+  --color-civic-blue: #2563eb;
+  --color-civic-blue-soft: rgba(37, 99, 235, 0.14);
+  --color-civic-green: #15803d;
+  --color-civic-green-soft: rgba(21, 128, 61, 0.14);
+  --color-civic-amber: #b45309;
+  --color-civic-amber-soft: rgba(180, 83, 9, 0.14);
+  --color-civic-red: #dc2626;
+  --color-civic-red-soft: rgba(220, 38, 38, 0.14);
+}
+
 /* The landing hero fills the first viewport, then the page scrolls normally. */
 html:has([data-page="landing"]) body {
   background: var(--l-bg);

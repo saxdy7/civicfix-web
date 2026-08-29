@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { CivicBotWidget } from "@/components/chatbot";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useDashboardTheme } from "@/lib/dashboard-theme";
 
 import styles from "./AdminShell.module.css";
 
@@ -55,9 +58,10 @@ export function AdminShell({
   pendingAccessRequests?: number;
 }) {
   const pathname = usePathname();
+  const { theme, toggleTheme } = useDashboardTheme();
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-theme={theme}>
       <aside className={styles.sidebar}>
         <Link href="/" className={styles.brand}>
           <span className={styles.brandMark}>
@@ -119,6 +123,7 @@ export function AdminShell({
             aria-label="Search"
           />
           <div className={styles.topbarActions}>
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
             <button type="button" className={styles.iconButton} aria-label="Notifications">
               ○
             </button>
@@ -130,6 +135,7 @@ export function AdminShell({
 
         <div className={styles.content}>{children}</div>
       </div>
+      <CivicBotWidget />
     </div>
   );
 }

@@ -1,0 +1,54 @@
+.popup {
+  padding: 12px;
+  min-width: 220px;
+  max-width: 280px;
+  font-family: inherit;
+}
+
+.popupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.popupTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-foreground, #0f172a);
+  margin: 0;
+}
+
+.popupMeta {
+  font-size: 11px;
+  color: var(--color-muted-foreground, #64748b);
+  margin: 0 0 6px 0;
+}
+
+.popupDescription {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-foreground, #334155);
+  margin: 0 0 10px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.popupLink {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary, #0284c7);
+  text-decoration: none;
+  border-radius: var(--radius-sm, 4px);
+  transition: color 0.15s ease;
+}
+
+.popupLink:hover {
+  text-decoration: underline;
+  color: var(--color-primary-hover, #0369a1);
+}

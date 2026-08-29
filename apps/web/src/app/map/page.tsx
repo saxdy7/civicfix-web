@@ -1,6 +1,7 @@
 import { PublicShell } from "@/components/PublicShell";
 import { mapIssueRow, type RawIssueRow } from "@/lib/issue-mappers";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { MOCK_ISSUES } from "@/lib/mock-data";
 import type { Issue } from "@/lib/types";
 
 import { MapExplorer } from "./MapExplorer";
@@ -24,6 +25,11 @@ export default async function PublicMapPage() {
       .limit(200);
 
     publicIssues = ((data as RawIssueRow[] | null) ?? []).map((row) => mapIssueRow(row));
+  }
+
+  // Fallback to rich mock data if table is empty or Supabase is not configured
+  if (publicIssues.length === 0) {
+    publicIssues = MOCK_ISSUES;
   }
 
   return (

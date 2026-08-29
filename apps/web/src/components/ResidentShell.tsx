@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { CivicBotWidget } from "@/components/chatbot";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useDashboardTheme } from "@/lib/dashboard-theme";
 
 import styles from "./ResidentShell.module.css";
 
@@ -22,6 +25,7 @@ function buildNavGroups(counts?: ResidentCounts) {
       label: "My activity",
       items: [
         { href: "/app", label: "Overview" },
+        { href: "/app/assistant", label: "🤖 AI Assistant" },
         { href: "/app/reports", label: "My reports", count: counts?.reports },
         { href: "/app/community", label: "Community" },
         { href: "/app/notifications", label: "Notifications", count: counts?.notifications },
@@ -51,9 +55,10 @@ export function ResidentShell({
 }) {
   const pathname = usePathname();
   const navGroups = buildNavGroups(counts);
+  const { theme, toggleTheme } = useDashboardTheme();
 
   return (
-    <div className={styles.shell}>
+    <div className={styles.shell} data-theme={theme}>
       <aside className={styles.sidebar}>
         <Link href="/" className={styles.brand}>
           <span className={styles.brandMark}>
@@ -97,6 +102,7 @@ export function ResidentShell({
         ))}
 
         <div className={styles.sidebarFooter}>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <div className={styles.userCard}>
             <span className={styles.avatar}>{initials(user.name)}</span>
             <div>
@@ -113,6 +119,7 @@ export function ResidentShell({
       <div className={styles.column}>
         <div className={styles.content}>{children}</div>
       </div>
+      <CivicBotWidget />
     </div>
   );
 }

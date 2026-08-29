@@ -1,16 +1,43 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
-import { Button, Card } from "@civicfix/ui-web";
+import { Badge, Button, Card } from "@civicfix/ui-web";
 
 import { LocationPicker, type PickedLocation } from "@/components/LocationPicker";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { CATEGORY_LABEL } from "@/lib/status";
-import type { IssueCategory, IssueSeverity } from "@/lib/types";
+import { CATEGORY_LABEL, SEVERITY_LABEL, STATUS_SHORT_LABEL } from "@/lib/status";
+import type { IssueCategory, IssueSeverity, IssueStatus } from "@/lib/types";
 
 import styles from "../resident.module.css";
+
+interface AiSuggestion {
+  category: IssueCategory;
+  severity: IssueSeverity;
+  confidence: number;
+  reasoning: string;
+  source: "vision" | "text" | "heuristic";
+  suggestedDepartment: string | null;
+}
+
+interface SimilarIssue {
+  id: string;
+  tracking_id: string;
+  description: string;
+  status: IssueStatus;
+  distance_m: number;
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 const CATEGORIES: { key: IssueCategory; glyph: string }[] = [
   { key: "pothole", glyph: "P" },
@@ -41,7 +68,65 @@ export function ReportComposer() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiUsed, setAiUsed] = useState(false);
+
+  const [similarIssues, setSimilarIssues] = useState<SimilarIssue[]>([]);
+
   const handleLocation = useCallback((next: PickedLocation) => setLocation(next), []);
+
+  // Nearby-similar-report check: cheap (DB-only RPC), so it runs automatically
+  // once a category and a pinned location both exist, debounced against
+  // repeated map drags. Rendering is gated on category+location below, so a
+  // stale list from a previous combination never has to be reset here.
+  useEffect(() => {
+    const client = supabase;
+    if (!client || !category || !location) return;
+    const timeout = setTimeout(async () => {
+      const { data } = await client.rpc("find_nearby_similar_issues", {
+        p_latitude: location.latitude,
+        p_longitude: location.longitude,
+        p_category: category,
+        p_radius_m: 200,
+      });
+      setSimilarIssues((data as SimilarIssue[] | null) ?? []);
+    }, 600);
+    return () => clearTimeout(timeout);
+  }, [category, location]);
+
+  const handleAnalyzeWithAi = async () => {
+    if (!description.trim() && !photoFile) {
+      setAiError("Add a description or photo first.");
+      return;
+    }
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const imageDataUrl = photoFile ? await fileToDataUrl(photoFile) : null;
+      const res = await fetch("/api/ai-triage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: description.trim(), imageDataUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI analysis failed");
+      setAiSuggestion(data as AiSuggestion);
+      setAiUsed(false);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "Could not analyze this report right now.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleUseAiSuggestion = () => {
+    if (!aiSuggestion) return;
+    setCategory(aiSuggestion.category);
+    setSeverity(aiSuggestion.severity);
+    setAiUsed(true);
+  };
 
   const handlePhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -138,6 +223,18 @@ export function ReportComposer() {
       return;
     }
 
+    if (aiSuggestion) {
+      await supabase.rpc("record_ai_assessment", {
+        p_issue_id: data.id,
+        p_category: aiSuggestion.category,
+        p_severity: aiSuggestion.severity,
+        p_confidence: aiSuggestion.confidence,
+        p_reasoning: aiSuggestion.reasoning,
+        p_provider: aiSuggestion.source === "heuristic" ? "heuristic" : "groq",
+        p_model: aiSuggestion.source === "vision" ? "llama-4-scout-17b-16e-instruct" : "llama-3.1-8b-instant",
+      });
+    }
+
     const params = new URLSearchParams({
       trackingId: data.tracking_id,
       category,
@@ -214,6 +311,40 @@ export function ReportComposer() {
             aria-label="Issue photo"
           />
         </div>
+
+        <Card tone="muted" style={{ marginTop: "var(--space-3)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-3)" }}>
+            <p className={styles.hint} style={{ margin: 0 }}>
+              🤖 Let AI suggest the category and severity from your description{photoFile ? " and photo" : ""}.
+            </p>
+            <Button type="button" variant="secondary" onClick={handleAnalyzeWithAi} disabled={aiLoading}>
+              {aiLoading ? "Analyzing…" : "Analyze with AI"}
+            </Button>
+          </div>
+          {aiError ? (
+            <p className={styles.errorText} role="alert" style={{ marginTop: "var(--space-2)" }}>
+              {aiError}
+            </p>
+          ) : null}
+          {aiSuggestion ? (
+            <div style={{ marginTop: "var(--space-3)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+              <p style={{ margin: 0 }}>
+                Looks like <strong>{CATEGORY_LABEL[aiSuggestion.category]}</strong>,{" "}
+                <strong>{SEVERITY_LABEL[aiSuggestion.severity]}</strong> severity{" "}
+                <Badge tone="info">{Math.round(aiSuggestion.confidence * 100)}% confidence</Badge>
+              </p>
+              <p className={styles.hint} style={{ margin: 0 }}>
+                {aiSuggestion.reasoning}
+                {aiSuggestion.suggestedDepartment ? ` Likely department: ${aiSuggestion.suggestedDepartment}.` : ""}
+              </p>
+              <div>
+                <Button type="button" variant="secondary" onClick={handleUseAiSuggestion} disabled={aiUsed}>
+                  {aiUsed ? "Applied" : "Use this suggestion"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </Card>
       </div>
 
       {/* Location */}
@@ -230,6 +361,28 @@ export function ReportComposer() {
           onChange={(e) => setLandmark(e.target.value)}
           aria-label="Nearest landmark"
         />
+        {category && location && similarIssues.length > 0 ? (
+          <Card tone="muted" style={{ marginTop: "var(--space-3)" }}>
+            <p className={styles.hint} style={{ margin: "0 0 var(--space-2)" }}>
+              {similarIssues.length === 1 ? "A similar report already exists" : "Similar reports already exist"}{" "}
+              nearby — consider confirming one of these instead of filing a new one.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+              {similarIssues.map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/issues/${s.id}`}
+                  target="_blank"
+                  className={styles.hint}
+                  style={{ textDecoration: "underline" }}
+                >
+                  {s.tracking_id} · {STATUS_SHORT_LABEL[s.status]} · ~{Math.round(s.distance_m)}m away — {s.description.slice(0, 80)}
+                  {s.description.length > 80 ? "…" : ""}
+                </Link>
+              ))}
+            </div>
+          </Card>
+        ) : null}
       </div>
 
       {/* Severity */}

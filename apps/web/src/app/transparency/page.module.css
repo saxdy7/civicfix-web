@@ -1,0 +1,118 @@
+.header {
+  margin-bottom: var(--space-6);
+  max-width: 720px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -0.05em;
+  line-height: 1.15;
+  margin: 0 0 var(--space-3);
+}
+
+.subtitle {
+  color: var(--color-muted-foreground);
+  font-size: var(--font-size-md);
+  margin: 0;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.statCard {
+  gap: var(--space-1);
+}
+
+.statValue {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--color-foreground);
+}
+
+.statLabel {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-3);
+}
+
+.emptyState {
+  padding: var(--space-7);
+  text-align: center;
+  color: var(--color-muted-foreground);
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 140px 1fr 180px;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.barRow:last-child {
+  margin-bottom: 0;
+}
+
+.barTrack {
+  height: 8px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  background: var(--color-inverse-background);
+  border-radius: var(--radius-pill);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.table th {
+  text-align: left;
+  color: var(--color-muted-foreground);
+  font-weight: 600;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: var(--space-4) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--color-surface-muted);
+}
