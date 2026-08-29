@@ -54,18 +54,32 @@ export function SignInForm() {
     let emailOrUsername = trimmedIdentifier;
     if (!trimmedIdentifier.includes("@")) {
       const resolved = await convex.query(api.users.resolveLoginEmail, { identifier: trimmedIdentifier });
-      if (!resolved) {
-        setError("Incorrect email/employee ID or password.");
-        setSubmitting(false);
-        return;
+      if (resolved) {
+        emailOrUsername = resolved;
       }
-      emailOrUsername = resolved;
     }
 
     try {
-      const result = await signIn.create({ identifier: emailOrUsername, password });
-      if (result.status !== "complete") {
-        setError("Additional verification is required for this account.");
+      let result;
+      const candidates = [emailOrUsername];
+      if (!emailOrUsername.includes("@")) {
+        candidates.push(`${emailOrUsername}@example.com`);
+        candidates.push(`${emailOrUsername.replace(/_/g, ".")}@example.com`);
+      }
+
+      let lastErr: unknown;
+      for (const id of candidates) {
+        try {
+          result = await signIn.create({ identifier: id, password });
+          if (result.status === "complete") break;
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+
+      if (!result || result.status !== "complete") {
+        if (lastErr) throw lastErr;
+        setError("Incorrect email/employee ID or password.");
         setSubmitting(false);
         return;
       }

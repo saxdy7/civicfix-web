@@ -37,17 +37,24 @@ export function AdminLoginForm() {
 
     try {
       let result;
-      try {
-        result = await signIn.create({ identifier: trimmed, password });
-      } catch (err: unknown) {
-        if (!trimmed.includes("@")) {
-          result = await signIn.create({ identifier: `${trimmed}@example.com`, password });
-        } else {
-          throw err;
+      const candidates = [trimmed];
+      if (!trimmed.includes("@")) {
+        candidates.push(`${trimmed}@example.com`);
+        candidates.push(`${trimmed.replace(/_/g, ".")}@example.com`);
+      }
+
+      let lastErr: unknown;
+      for (const id of candidates) {
+        try {
+          result = await signIn.create({ identifier: id, password });
+          if (result.status === "complete") break;
+        } catch (err) {
+          lastErr = err;
         }
       }
 
-      if (result.status !== "complete") {
+      if (!result || result.status !== "complete") {
+        if (lastErr) throw lastErr;
         setError("Incorrect username or password.");
         setSubmitting(false);
         return;
