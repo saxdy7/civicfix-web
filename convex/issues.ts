@@ -71,6 +71,7 @@ export const create = mutation({
     longitude: v.number(),
     accuracyM: v.optional(v.number()),
     neighborhood: v.optional(v.string()),
+    isEmergency: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const reporter = await requireUser(ctx);
@@ -93,18 +94,24 @@ export const create = mutation({
     const matchedDept = departments.find((d) => (d.categories as string[]).includes(args.category)) ?? departments[0];
 
     const suggestedDepartmentId = matchedDept?._id;
-    const routingReason = matchedDept
+    const routingReason = args.isEmergency
+      ? `🚨 EMERGENCY HAZARD: Expedited 4-hour SLA dispatch recommended for ${matchedDept?.name ?? "Public Safety"}.`
+      : matchedDept
       ? `Auto-recommended for ${matchedDept.name} (${matchedDept.slaHours}h SLA target) based on category '${args.category}'.`
       : "General triage queue recommendation.";
+
+    const finalSeverity = args.isEmergency ? "critical" : args.severity;
 
     const issueId = await ctx.db.insert("issues", {
       trackingId,
       reporterId: reporter._id,
       category: args.category,
       description: args.description.trim(),
-      severity: args.severity,
-      priority: args.severity,
+      severity: finalSeverity,
+      priority: finalSeverity,
       status: "reported",
+      isEmergency: args.isEmergency ?? false,
+      endorsementCount: 1,
       suggestedDepartmentId,
       routingReason,
       isPublic: true,
@@ -122,17 +129,117 @@ export const create = mutation({
       issueId,
       status: "reported",
       actorId: reporter._id,
-      note: `Report filed. Suggested routing: ${matchedDept?.name ?? "Triage Queue"}.`,
+      note: args.isEmergency
+        ? `🚨 EMERGENCY HAZARD REPORTED. High-priority response required.`
+        : `Report filed. Suggested routing: ${matchedDept?.name ?? "Triage Queue"}.`,
       createdAt: now,
     });
 
+    if (args.isEmergency) {
+      // Notify staff/managers immediately
+      const staffRoles = await ctx.db
+        .query("userRoles")
+        .withIndex("by_role")
+        .filter((q) =>
+          q.or(
+            q.eq(q.field("role"), "department_manager"),
+            q.eq(q.field("role"), "administrator"),
+          ),
+        )
+        .collect();
+
+      const uniqueStaffIds = Array.from(new Set(staffRoles.map((r) => r.userId)));
+      for (const staffId of uniqueStaffIds) {
+        await ctx.db.insert("notifications", {
+          userId: staffId,
+          issueId,
+          title: `🚨 Emergency Hazard: ${trackingId}`,
+          body: `An urgent public hazard (${args.category}) was reported at ${args.neighborhood ?? "pinned location"}.`,
+          createdAt: now,
+        });
+      }
+    }
+
     await audit(ctx, reporter._id, "issue.create", "issues", issueId, {
       category: args.category,
-      severity: args.severity,
+      severity: finalSeverity,
+      isEmergency: args.isEmergency,
       suggestedDepartmentId,
     });
 
     return { id: issueId, trackingId, suggestedDepartmentId, routingReason };
+  },
+});
+
+/**
+ * Smart Endorsement (+1 I see this too).
+ * Allows a resident to confirm an existing nearby report instead of filing a duplicate.
+ */
+export const endorse = mutation({
+  args: {
+    issueId: v.id("issues"),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const issue = await ctx.db.get(args.issueId);
+    if (!issue || issue.deletedAt) {
+      throw new ConvexError("Issue not found");
+    }
+
+    const now = Date.now();
+
+    // Check if user already voted or endorsed
+    const existingVote = await ctx.db
+      .query("communityVotes")
+      .withIndex("by_user_and_created", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("issueId"), args.issueId))
+      .first();
+
+    if (existingVote) {
+      return { success: true, trackingId: issue.trackingId, alreadyEndorsed: true };
+    }
+
+    // Insert endorsement vote
+    await ctx.db.insert("communityVotes", {
+      issueId: args.issueId,
+      userId: user._id,
+      vote: "completed",
+      comment: args.note ?? "Confirmed seeing this issue (+1 pre-submission endorsement)",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const newCount = (issue.endorsementCount ?? 1) + 1;
+    await ctx.db.patch(args.issueId, {
+      endorsementCount: newCount,
+      updatedAt: now,
+    });
+
+    await ctx.db.insert("issueEvents", {
+      issueId: args.issueId,
+      status: issue.status,
+      actorId: user._id,
+      note: `Resident confirmed seeing this issue (+1 endorsement, total ${newCount}).`,
+      createdAt: now,
+    });
+
+    // Notify original reporter
+    if (issue.reporterId !== user._id) {
+      await ctx.db.insert("notifications", {
+        userId: issue.reporterId,
+        issueId: issue._id,
+        title: `+1 Endorsement on ${issue.trackingId}`,
+        body: `A neighbor confirmed seeing this ${issue.category} at your reported location.`,
+        createdAt: now,
+      });
+    }
+
+    await audit(ctx, user._id, "issue.endorse", "issues", args.issueId, {
+      endorsementCount: newCount,
+    });
+
+    return { success: true, trackingId: issue.trackingId, endorsementCount: newCount };
   },
 });
 

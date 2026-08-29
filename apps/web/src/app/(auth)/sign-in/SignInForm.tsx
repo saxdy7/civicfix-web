@@ -2,7 +2,7 @@
 
 import { useSignIn } from "@clerk/nextjs";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@civicfix/ui-web";
@@ -21,7 +21,6 @@ function authErrorMessage(err: unknown): string {
 }
 
 export function SignInForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
   const { isLoaded, signIn, setActive } = useSignIn();
@@ -32,51 +31,77 @@ export function SignInForm() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  const handleLogin = async (idToUse: string, passToUse: string) => {
     if (!isLoaded) return;
 
-    const trimmedIdentifier = identifier.trim();
+    const trimmedIdentifier = idToUse.trim();
     if (trimmedIdentifier.length < 3) return setError("Enter your email or employee ID.");
-    if (password.length < 8) return setError("Password must be at least 8 characters.");
+    if (passToUse.length < 8) return setError("Password must be at least 8 characters.");
 
     setError(null);
     setSubmitting(true);
 
-    const emailOrUsername = trimmedIdentifier;
+    const candidates = [trimmedIdentifier];
+    if (!trimmedIdentifier.includes("@")) {
+      candidates.push(`${trimmedIdentifier}@example.com`);
+      candidates.push(`${trimmedIdentifier.replace(/_/g, ".")}@example.com`);
+    }
 
-    try {
-      let result;
-      const candidates = [emailOrUsername];
-      if (!emailOrUsername.includes("@")) {
-        candidates.push(`${emailOrUsername}@example.com`);
-        candidates.push(`${emailOrUsername.replace(/_/g, ".")}@example.com`);
-      }
-
-      let lastErr: unknown;
-      for (const id of candidates) {
-        try {
-          result = await signIn.create({ identifier: id, password });
-          if (result.status === "complete") break;
-        } catch (err) {
+    let lastErr: unknown;
+    for (const id of candidates) {
+      try {
+        let result = await signIn.create({ identifier: id, password: passToUse });
+        if (result.status === "needs_first_factor") {
+          result = await signIn.attemptFirstFactor({
+            strategy: "password",
+            password: passToUse,
+          });
+        }
+        if (result.status === "complete") {
+          await setActive({ session: result.createdSessionId });
+          window.location.assign(next ?? "/post-sign-in");
+          return;
+        }
+      } catch (err: unknown) {
+        const clerkErr = err as { errors?: { code?: string; message?: string }[] };
+        const code = clerkErr?.errors?.[0]?.code;
+        if (code === "identifier_already_set" || code === "session_exists") {
+          try {
+            const factorRes = await signIn.attemptFirstFactor({
+              strategy: "password",
+              password: passToUse,
+            });
+            if (factorRes.status === "complete") {
+              await setActive({ session: factorRes.createdSessionId });
+              window.location.assign(next ?? "/post-sign-in");
+              return;
+            }
+          } catch (factorErr) {
+            lastErr = factorErr;
+          }
+        } else {
           lastErr = err;
         }
       }
-
-      if (!result || result.status !== "complete") {
-        if (lastErr) throw lastErr;
-        setError("Incorrect email/employee ID or password.");
-        setSubmitting(false);
-        return;
-      }
-      await setActive({ session: result.createdSessionId });
-
-      router.push(next ?? "/post-sign-in");
-      router.refresh();
-    } catch (err) {
-      setError(authErrorMessage(err));
-      setSubmitting(false);
     }
+
+    if (lastErr) {
+      setError(authErrorMessage(lastErr));
+    } else {
+      setError("Incorrect email/employee ID or password.");
+    }
+    setSubmitting(false);
+  };
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    handleLogin(identifier, password);
+  };
+
+  const fillAndLogin = (demoEmail: string, demoPass: string) => {
+    setIdentifier(demoEmail);
+    setPassword(demoPass);
+    handleLogin(demoEmail, demoPass);
   };
 
   return (
@@ -158,23 +183,84 @@ export function SignInForm() {
           <div
             style={{
               marginTop: "20px",
-              padding: "12px",
+              padding: "14px",
               borderRadius: "8px",
-              border: "1px dashed var(--color-border, #333)",
+              border: "1px dashed var(--color-border, #444)",
               background: "var(--color-surface, #111)",
               fontSize: "12px",
               color: "#aaa",
               lineHeight: 1.6,
             }}
           >
-            <strong style={{ color: "#fff", display: "block", marginBottom: "4px" }}>
-              Demo Accounts:
+            <strong style={{ color: "#fff", display: "block", marginBottom: "8px" }}>
+              ⚡ 1-Click Quick Demo Sign In:
             </strong>
-            <div>
-              🏡 <strong>Resident (Citizen):</strong> <code>resident_demo@example.com</code> / <code>CivicFixDemo!2026</code>
-            </div>
-            <div>
-              🛡️ <strong>Administrator:</strong> <code>civicfix_admin_demo@example.com</code> / <code>CivicFixDemo!2026</code>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <button
+                type="button"
+                onClick={() => fillAndLogin("resident_demo@example.com", "CivicFixDemo!2026")}
+                disabled={submitting}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  border: "1px solid var(--color-border, #333)",
+                  background: "var(--color-surface-muted, #1a1a1a)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  textAlign: "left",
+                }}
+              >
+                <span>🏡 <strong>Resident:</strong> resident_demo@example.com</span>
+                <span style={{ color: "var(--color-civic-green, #10b981)", fontWeight: 600 }}>Log In →</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fillAndLogin("worker_demo@example.com", "CivicFixDemo!2026")}
+                disabled={submitting}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  border: "1px solid var(--color-border, #333)",
+                  background: "var(--color-surface-muted, #1a1a1a)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  textAlign: "left",
+                }}
+              >
+                <span>🛠️ <strong>Field Worker:</strong> worker_demo@example.com</span>
+                <span style={{ color: "var(--color-civic-green, #10b981)", fontWeight: 600 }}>Log In →</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fillAndLogin("civicfix_admin_demo@example.com", "CivicFixDemo!2026")}
+                disabled={submitting}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "6px 10px",
+                  borderRadius: "6px",
+                  border: "1px solid var(--color-border, #333)",
+                  background: "var(--color-surface-muted, #1a1a1a)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                  textAlign: "left",
+                }}
+              >
+                <span>🛡️ <strong>Administrator:</strong> civicfix_admin_demo@example.com</span>
+                <span style={{ color: "var(--color-civic-green, #10b981)", fontWeight: 600 }}>Log In →</span>
+              </button>
             </div>
           </div>
         </form>

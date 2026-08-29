@@ -2,7 +2,6 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useConvex, useMutation } from "convex/react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
@@ -62,6 +61,7 @@ export function ReportComposer() {
   const { user } = useUser();
   const convex = useConvex();
   const createIssue = useMutation(api.issues.create);
+  const endorseIssue = useMutation(api.issues.endorse);
   const generateUploadUrl = useMutation(api.issueMedia.generateUploadUrl);
   const saveMedia = useMutation(api.issueMedia.save);
   const recordAssessment = useMutation(api.aiAssessments.record);
@@ -69,6 +69,7 @@ export function ReportComposer() {
 
   const [category, setCategory] = useState<IssueCategory | null>(null);
   const [severity, setSeverity] = useState<IssueSeverity>("medium");
+  const [isEmergency, setIsEmergency] = useState(false);
   const [description, setDescription] = useState("");
   const [landmark, setLandmark] = useState("");
   const [location, setLocation] = useState<PickedLocation | null>(null);
@@ -77,6 +78,9 @@ export function ReportComposer() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [isListening, setIsListening] = useState(false);
+  const [endorsingId, setEndorsingId] = useState<string | null>(null);
 
   const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -97,9 +101,69 @@ export function ReportComposer() {
         radiusM: 200,
       });
       setSimilarIssues(results);
-    }, 600);
+    }, 500);
     return () => clearTimeout(timeout);
   }, [category, location, convex]);
+
+  const toggleVoiceDictation = () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const win = window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any };
+    const SpeechRecognition = win.SpeechRecognition || win.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setError("Speech recognition is not supported in this browser. Please type your description.");
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setError(null);
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0]?.[0]?.transcript;
+        if (transcript) {
+          setDescription((prev) => (prev ? `${prev.trim()} ${transcript}` : transcript));
+        }
+      };
+
+      recognition.onerror = () => {
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch {
+      setIsListening(false);
+    }
+  };
+
+  const handleEndorseExisting = async (issueId: Doc<"issues">["_id"]) => {
+    setEndorsingId(issueId);
+    setError(null);
+    try {
+      await endorseIssue({ issueId, note: "Confirmed seeing this issue nearby." });
+      router.push(`/issues/${issueId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not endorse this report.");
+      setEndorsingId(null);
+    }
+  };
 
   const handleAnalyzeWithAi = async () => {
     if (!description.trim() && !photoFile) {
@@ -168,7 +232,8 @@ export function ReportComposer() {
       const { id: issueId, trackingId } = await createIssue({
         category,
         description: description.trim(),
-        severity,
+        severity: isEmergency ? "critical" : severity,
+        isEmergency,
         latitude: location.latitude,
         longitude: location.longitude,
         neighborhood: landmark.trim() || undefined,
@@ -201,7 +266,7 @@ export function ReportComposer() {
       const params = new URLSearchParams({
         trackingId,
         category,
-        severity,
+        severity: isEmergency ? "critical" : severity,
         lat: location.latitude.toFixed(5),
         lng: location.longitude.toFixed(5),
       });
@@ -326,60 +391,169 @@ export function ReportComposer() {
           onChange={(e) => setLandmark(e.target.value)}
           aria-label="Nearest landmark"
         />
+
+        {/* Smart Pre-Submission Duplicate Radar */}
         {category && location && similarIssues.length > 0 ? (
-          <Card tone="muted" style={{ marginTop: "var(--space-3)" }}>
-            <p className={styles.hint} style={{ margin: "0 0 var(--space-2)" }}>
-              {similarIssues.length === 1 ? "A similar report already exists" : "Similar reports already exist"}{" "}
-              nearby — take a look before filing a new one.
+          <Card tone="muted" style={{ marginTop: "var(--space-3)", border: "1px solid var(--color-civic-amber)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
+              <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600, color: "var(--color-civic-amber)" }}>
+                ⚠️ Nearby similar reports detected ({similarIssues.length})
+              </span>
+              <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-muted-foreground)" }}>
+                Within 200m
+              </span>
+            </div>
+            <p className={styles.hint} style={{ margin: "0 0 var(--space-3)" }}>
+              Save city resources! If one of these reports describes your issue, confirm it with 1 click instead of creating a duplicate:
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
               {similarIssues.map((s) => (
-                <Link
+                <div
                   key={s._id}
-                  href={`/issues/${s._id}`}
-                  target="_blank"
-                  className={styles.hint}
-                  style={{ textDecoration: "underline" }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "var(--space-3)",
+                    padding: "var(--space-2) var(--space-3)",
+                    background: "var(--color-surface)",
+                    borderRadius: "var(--radius-control)",
+                    border: "1px solid var(--color-border)",
+                  }}
                 >
-                  {s.trackingId} · {STATUS_SHORT_LABEL[s.status]} — {s.description.slice(0, 80)}
-                  {s.description.length > 80 ? "…" : ""}
-                </Link>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                      <strong style={{ fontSize: "var(--font-size-sm)" }}>{s.trackingId}</strong>
+                      <Badge tone={s.status === "resolved" ? "success" : "warning"}>
+                        {STATUS_SHORT_LABEL[s.status]}
+                      </Badge>
+                      {s.endorsementCount && s.endorsementCount > 1 ? (
+                        <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-muted-foreground)" }}>
+                          👥 {s.endorsementCount} neighbors
+                        </span>
+                      ) : null}
+                    </div>
+                    <p style={{ margin: "var(--space-1) 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {s.description}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => handleEndorseExisting(s._id)}
+                    disabled={Boolean(endorsingId)}
+                    style={{ whiteSpace: "nowrap" }}
+                  >
+                    {endorsingId === s._id ? "Confirming…" : "+1 I see this too"}
+                  </Button>
+                </div>
               ))}
             </div>
           </Card>
         ) : null}
       </div>
 
-      {/* Severity */}
+      {/* Emergency Mode / Hazard Escalation */}
       <div className={styles.field}>
-        <span className={styles.label}>4. How urgent is it?</span>
-        <p className={styles.hint}>
-          Your assessment is a signal, not the final call — staff confirm severity during triage.
-        </p>
-        <div className={styles.severityRow}>
-          {SEVERITIES.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              className={`${styles.severityChip} ${severity === s.key ? styles.severityChipActive : ""}`}
-              onClick={() => setSeverity(s.key)}
-              aria-pressed={severity === s.key}
-            >
-              {s.label}
-            </button>
-          ))}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "var(--space-3) var(--space-4)",
+            borderRadius: "var(--radius-control)",
+            border: isEmergency ? "1px solid var(--color-civic-red)" : "1px solid var(--color-border)",
+            background: isEmergency ? "rgba(225, 29, 72, 0.08)" : "var(--color-surface-muted)",
+          }}
+        >
+          <div>
+            <span style={{ fontWeight: 600, fontSize: "var(--font-size-sm)", color: isEmergency ? "var(--color-civic-red)" : "var(--color-foreground)" }}>
+              🚨 Immediate Public Hazard / Danger
+            </span>
+            <p className={styles.hint} style={{ margin: "var(--space-1) 0 0" }}>
+              For live wires, active gas leaks, collapsed roads, or immediate physical safety risks.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isEmergency}
+            onClick={() => {
+              const next = !isEmergency;
+              setIsEmergency(next);
+              if (next) setSeverity("critical");
+            }}
+            style={{
+              padding: "var(--space-2) var(--space-3)",
+              borderRadius: "var(--radius-pill)",
+              border: "1px solid var(--color-border)",
+              background: isEmergency ? "var(--color-civic-red)" : "var(--color-surface)",
+              color: isEmergency ? "#fff" : "var(--color-foreground)",
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: "var(--font-size-xs)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {isEmergency ? "Hazard Active (4h SLA)" : "Flag as Emergency"}
+          </button>
         </div>
       </div>
 
-      {/* Description */}
+      {/* Severity */}
+      {!isEmergency ? (
+        <div className={styles.field}>
+          <span className={styles.label}>4. How urgent is it?</span>
+          <p className={styles.hint}>
+            Your assessment is a signal, not the final call — staff confirm severity during triage.
+          </p>
+          <div className={styles.severityRow}>
+            {SEVERITIES.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                className={`${styles.severityChip} ${severity === s.key ? styles.severityChipActive : ""}`}
+                onClick={() => setSeverity(s.key)}
+                aria-pressed={severity === s.key}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Description with Voice Dictation */}
       <div className={styles.field}>
-        <label className={styles.label} htmlFor="description">
-          5. Describe the issue
-        </label>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
+          <label className={styles.label} htmlFor="description" style={{ margin: 0 }}>
+            5. Describe the issue
+          </label>
+          <button
+            type="button"
+            onClick={toggleVoiceDictation}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "var(--space-1)",
+              padding: "var(--space-1) var(--space-3)",
+              borderRadius: "var(--radius-pill)",
+              border: isListening ? "1px solid var(--color-civic-red)" : "1px solid var(--color-border)",
+              background: isListening ? "rgba(225, 29, 72, 0.15)" : "var(--color-surface-muted)",
+              color: isListening ? "var(--color-civic-red)" : "var(--color-foreground)",
+              fontSize: "var(--font-size-xs)",
+              cursor: "pointer",
+              fontWeight: 500,
+            }}
+            aria-label="Voice Dictation"
+          >
+            <span>{isListening ? "🔴 Listening…" : "🎙️ Voice dictation"}</span>
+          </button>
+        </div>
         <textarea
           id="description"
           className={styles.textarea}
-          placeholder="What is wrong, how long has it been like this, and who does it affect?"
+          placeholder="What is wrong, how long has it been like this, and who does it affect? (Or click Voice dictation to speak)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
@@ -401,7 +575,7 @@ export function ReportComposer() {
 
       <div className={styles.actions}>
         <Button type="submit" disabled={submitting}>
-          {submitting ? "Submitting…" : "Submit report"}
+          {submitting ? "Submitting…" : isEmergency ? "🚨 Submit Emergency Report" : "Submit report"}
         </Button>
         <Button type="button" variant="secondary" onClick={() => router.push("/app")}>
           Cancel

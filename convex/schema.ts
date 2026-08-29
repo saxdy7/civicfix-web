@@ -86,6 +86,8 @@ export default defineSchema({
     departmentId: v.optional(v.id("departments")),
     suggestedDepartmentId: v.optional(v.id("departments")),
     routingReason: v.optional(v.string()),
+    isEmergency: v.optional(v.boolean()),
+    endorsementCount: v.optional(v.number()),
     communityVerificationSignal: v.optional(
       v.union(v.literal("approved"), v.literal("needs_work"), v.literal("inconclusive")),
     ),
