@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { BotAction, BotMessage } from "./types";
 import { generateBotResponse } from "./bot-engine";
 
@@ -18,6 +19,7 @@ const INITIAL_GREETING: BotMessage = {
 };
 
 export function useCivicBot() {
+  const router = useRouter();
   const [messages, setMessages] = useState<BotMessage[]>([INITIAL_GREETING]);
   const [input, setInput] = useState("");
   const [attachedPhoto, setAttachedPhoto] = useState<string | null>(null);
@@ -96,12 +98,12 @@ export function useCivicBot() {
           ]);
         }, 800);
       } else if (action.actionId === "open_map") {
-        window.location.href = "/map";
+        router.push("/map");
       } else if (action.actionId === "view_issue" && action.payload?.id) {
-        window.location.href = `/issues/${action.payload.id}`;
+        router.push(`/issues/${action.payload.id}`);
       }
     },
-    [messages, sendMessage]
+    [messages, sendMessage, router]
   );
 
   return {

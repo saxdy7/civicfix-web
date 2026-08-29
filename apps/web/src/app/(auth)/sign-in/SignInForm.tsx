@@ -1,14 +1,11 @@
 "use client";
 
 import { useSignIn } from "@clerk/nextjs";
-import { useConvex } from "convex/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@civicfix/ui-web";
-
-import { api } from "@convex/_generated/api";
 
 import styles from "../auth.module.css";
 
@@ -28,7 +25,6 @@ export function SignInForm() {
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
   const { isLoaded, signIn, setActive } = useSignIn();
-  const convex = useConvex();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -47,17 +43,7 @@ export function SignInForm() {
     setError(null);
     setSubmitting(true);
 
-    // A staff member may log in with their employee ID instead of their
-    // email — Clerk itself only signs in by email/username, so this
-    // resolves an ID to the account's email first via a pre-auth Convex
-    // query. A plain email skips the lookup entirely.
-    let emailOrUsername = trimmedIdentifier;
-    if (!trimmedIdentifier.includes("@")) {
-      const resolved = await convex.query(api.users.resolveLoginEmail, { identifier: trimmedIdentifier });
-      if (resolved) {
-        emailOrUsername = resolved;
-      }
-    }
+    const emailOrUsername = trimmedIdentifier;
 
     try {
       let result;
@@ -85,10 +71,8 @@ export function SignInForm() {
       }
       await setActive({ session: result.createdSessionId });
 
-      // A full navigation (rather than a client-side redirect right after
-      // setActive) guarantees the server sees the refreshed Clerk session
-      // cookie before deciding where staff vs. residents land.
-      window.location.assign(next ?? "/post-sign-in");
+      router.push(next ?? "/post-sign-in");
+      router.refresh();
     } catch (err) {
       setError(authErrorMessage(err));
       setSubmitting(false);

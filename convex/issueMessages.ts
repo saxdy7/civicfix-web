@@ -1,16 +1,49 @@
+import { paginationOptsValidator } from "convex/server";
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { isStaff, requireUser } from "./lib/auth";
+import type { QueryCtx, MutationCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import { getRoles, isStaff, requireUser } from "./lib/auth";
 
-/** A resident sees only their own issue's chat; staff can open any issue's operational chat. */
+const MAX_MESSAGE_LENGTH = 2000;
+
+type Ctx = QueryCtx | MutationCtx;
+
+async function canAccessIssueChat(ctx: Ctx, userId: Id<"users">, issue: Doc<"issues">): Promise<boolean> {
+  if (issue.reporterId === userId) return true;
+  const roles = await getRoles(ctx, userId);
+  if (roles.includes("administrator") || roles.includes("auditor")) return true;
+  if (roles.includes("department_manager")) {
+    const userRoleRows = await ctx.db
+      .query("userRoles")
+      .withIndex("by_user_and_role", (q) => q.eq("userId", userId).eq("role", "department_manager"))
+      .collect();
+    if (userRoleRows.some((r) => !r.departmentId || r.departmentId === issue.departmentId)) {
+      return true;
+    }
+  }
+  if (roles.includes("field_worker")) {
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_issue", (q) => q.eq("issueId", issue._id))
+      .collect();
+    if (assignments.some((a) => a.workerId === userId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** A resident sees only their own issue's chat; staff can open chats within their authorized scope. */
 export const listForIssue = query({
   args: { issueId: v.id("issues") },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
     const issue = await ctx.db.get(args.issueId);
-    if (!issue) return [];
-    const staff = await isStaff(ctx, user._id);
-    if (issue.reporterId !== user._id && !staff) return [];
+    if (!issue || issue.deletedAt) return [];
+
+    const allowed = await canAccessIssueChat(ctx, user._id, issue);
+    if (!allowed) return [];
 
     return await ctx.db
       .query("issueMessages")
@@ -19,31 +52,64 @@ export const listForIssue = query({
   },
 });
 
-export const send = mutation({
-  args: { issueId: v.id("issues"), body: v.string(), senderRole: v.union(v.literal("resident"), v.literal("staff")) },
+export const paginateForIssue = query({
+  args: { issueId: v.id("issues"), paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
-    if (args.body.trim().length === 0) throw new ConvexError("Message cannot be empty");
+    const issue = await ctx.db.get(args.issueId);
+    if (!issue || issue.deletedAt) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+
+    const allowed = await canAccessIssueChat(ctx, user._id, issue);
+    if (!allowed) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+
+    return await ctx.db
+      .query("issueMessages")
+      .withIndex("by_issue_and_time", (q) => q.eq("issueId", args.issueId))
+      .order("desc")
+      .paginate(args.paginationOpts);
+  },
+});
+
+export const send = mutation({
+  args: {
+    issueId: v.id("issues"),
+    body: v.string(),
+    senderRole: v.union(v.literal("resident"), v.literal("staff")),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const trimmed = args.body.trim();
+    if (trimmed.length === 0) throw new ConvexError("Message cannot be empty");
+    if (trimmed.length > MAX_MESSAGE_LENGTH) {
+      throw new ConvexError(`Message must be ${MAX_MESSAGE_LENGTH} characters or less`);
+    }
 
     const issue = await ctx.db.get(args.issueId);
-    if (!issue) throw new ConvexError("Issue not found");
-    const staff = await isStaff(ctx, user._id);
-    if (args.senderRole === "resident" && issue.reporterId !== user._id) {
-      throw new ConvexError("Not authorized to message on this issue");
+    if (!issue || issue.deletedAt) throw new ConvexError("Issue not found");
+
+    const allowed = await canAccessIssueChat(ctx, user._id, issue);
+    if (!allowed) throw new ConvexError("Not authorized to chat on this issue");
+
+    if (args.senderRole === "staff") {
+      const staff = await isStaff(ctx, user._id);
+      if (!staff) throw new ConvexError("Not authorized to message as staff");
     }
-    if (args.senderRole === "staff" && !staff) throw new ConvexError("Not authorized to message as staff");
 
     const now = Date.now();
     const messageId = await ctx.db.insert("issueMessages", {
       issueId: args.issueId,
       senderId: user._id,
       senderRole: args.senderRole,
-      body: args.body.trim(),
+      body: trimmed,
       deliveredAt: now,
       createdAt: now,
     });
 
-    // Notify the other party — reporter <-> staff, whichever this sender isn't.
+    // Notify the other party — reporter <-> staff.
     const notifyUserId = args.senderRole === "resident" ? null : issue.reporterId;
     if (notifyUserId && notifyUserId !== user._id) {
       await ctx.db.insert("notifications", {
@@ -63,14 +129,22 @@ export const markRead = mutation({
   args: { issueId: v.id("issues") },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
+    const issue = await ctx.db.get(args.issueId);
+    if (!issue || issue.deletedAt) return;
+
+    const allowed = await canAccessIssueChat(ctx, user._id, issue);
+    if (!allowed) throw new ConvexError("Not authorized to mark messages read on this issue");
+
     const messages = await ctx.db
       .query("issueMessages")
       .withIndex("by_issue_and_time", (q) => q.eq("issueId", args.issueId))
       .collect();
+
+    const now = Date.now();
     await Promise.all(
       messages
         .filter((m) => m.senderId !== user._id && !m.readAt)
-        .map((m) => ctx.db.patch(m._id, { readAt: Date.now() })),
+        .map((m) => ctx.db.patch(m._id, { readAt: now })),
     );
   },
 });
@@ -85,8 +159,10 @@ export const flag = mutation({
     if (!message) throw new ConvexError("Message not found");
 
     const issue = await ctx.db.get(message.issueId);
-    const staff = await isStaff(ctx, user._id);
-    if (!issue || (issue.reporterId !== user._id && !staff)) throw new ConvexError("Not authorized to flag this message");
+    if (!issue || issue.deletedAt) throw new ConvexError("Issue not found");
+
+    const allowed = await canAccessIssueChat(ctx, user._id, issue);
+    if (!allowed) throw new ConvexError("Not authorized to flag this message");
 
     await ctx.db.patch(message._id, { flaggedAt: Date.now(), flaggedBy: user._id, flagReason: args.reason.trim() });
     await ctx.db.insert("auditLogs", {

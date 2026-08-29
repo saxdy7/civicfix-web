@@ -5,7 +5,7 @@ export type BotMessageType = "text" | "report_draft" | "status_card" | "duplicat
 export interface BotAction {
   label: string;
   actionId: string;
-  payload?: any;
+  payload?: Record<string, unknown>;
   variant?: "primary" | "secondary" | "danger";
 }
 

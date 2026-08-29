@@ -62,19 +62,6 @@ export const viewer = query({
   },
 });
 
-/** Look up a login identifier (email or employee ID) to the account's Clerk-facing email. */
-export const resolveLoginEmail = query({
-  args: { identifier: v.string() },
-  handler: async (ctx, args) => {
-    if (args.identifier.includes("@")) return args.identifier;
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_employee_id", (q) => q.eq("employeeId", args.identifier))
-      .unique();
-    return user?.email ?? null;
-  },
-});
-
 /** Staff-only — every field worker, for the "assign a worker" dropdown. */
 export const listFieldWorkers = query({
   args: {},
@@ -93,13 +80,14 @@ export const listFieldWorkers = query({
   },
 });
 
-/** Administrator-only — every user with a trust-score ledger event, for the trust-score review page. */
+/** Administrator-only — users with a trust-score ledger event, for the trust-score review page. */
 export const listTrustScores = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
     await requireRole(ctx, ["administrator"]);
-    const events = await ctx.db.query("trustScoreEvents").collect();
-    const userIds = Array.from(new Set(events.map((e) => e.userId)));
+    const limit = args.limit ?? 50;
+    const events = await ctx.db.query("trustScoreEvents").withIndex("by_user_and_time").take(limit * 5);
+    const userIds = Array.from(new Set(events.map((e) => e.userId))).slice(0, limit);
     return await Promise.all(
       userIds.map(async (userId) => {
         const user = await ctx.db.get(userId);
@@ -119,11 +107,19 @@ export const listTrustScores = query({
 
 /** Administrator-only staff directory for the Users & roles admin page. */
 export const listStaff = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { role: v.optional(v.union(v.literal("field_worker"), v.literal("department_manager"), v.literal("administrator"), v.literal("auditor"))) },
+  handler: async (ctx, args) => {
     await requireRole(ctx, ["administrator"]);
 
-    const staffRoleRows = await ctx.db.query("userRoles").collect();
+    let staffRoleRows;
+    if (args.role) {
+      staffRoleRows = await ctx.db
+        .query("userRoles")
+        .withIndex("by_role", (q) => q.eq("role", args.role!))
+        .collect();
+    } else {
+      staffRoleRows = await ctx.db.query("userRoles").collect();
+    }
     const staffOnly = staffRoleRows.filter((r) => r.role !== "citizen");
 
     const rows = await Promise.all(

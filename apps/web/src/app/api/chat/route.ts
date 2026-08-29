@@ -11,10 +11,8 @@ export async function POST(req: Request) {
     // Process via civic intent engine
     const botReply = generateBotResponse(message || "", photoUrl);
     return NextResponse.json({ reply: botReply });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Failed to process message" },
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Failed to process message";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

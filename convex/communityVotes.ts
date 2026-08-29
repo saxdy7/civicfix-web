@@ -1,17 +1,35 @@
+import { paginationOptsValidator } from "convex/server";
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireUser } from "./lib/auth";
 
 const VOTE_THRESHOLD = 3;
+const MAX_COMMENT_LENGTH = 1000;
+const VOTE_RATE_LIMIT_MS = 60 * 1000; // 1 minute window
+const MAX_VOTES_PER_WINDOW = 15;
+const MAX_COMMENTS_PER_WINDOW = 10;
 
 /** Issues open for or recently through community verification — before/after media resolved to URLs client-side via issueMedia.getUrl. */
 export const feed = query({
-  args: {},
-  handler: async (ctx) => {
-    const issues = await ctx.db.query("issues").collect();
-    const eligible = issues.filter(
-      (i) => i.isPublic && !i.deletedAt && ["pending_verification", "resolved"].includes(i.status),
-    );
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 30;
+    const issues = await ctx.db
+      .query("issues")
+      .withIndex("by_public_and_status_and_created", (q) => q.eq("isPublic", true).eq("status", "pending_verification"))
+      .order("desc")
+      .take(limit);
+
+    const resolvedRecent = await ctx.db
+      .query("issues")
+      .withIndex("by_public_and_status_and_created", (q) => q.eq("isPublic", true).eq("status", "resolved"))
+      .order("desc")
+      .take(limit);
+
+    const eligible = [...issues, ...resolvedRecent]
+      .filter((i) => !i.deletedAt)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, limit);
 
     return await Promise.all(
       eligible.map(async (issue) => {
@@ -40,6 +58,44 @@ export const feed = query({
   },
 });
 
+export const paginateFeed = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const paginated = await ctx.db
+      .query("issues")
+      .withIndex("by_public_and_status_and_created", (q) => q.eq("isPublic", true).eq("status", "pending_verification"))
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    const enrichedPage = await Promise.all(
+      paginated.page.map(async (issue) => {
+        const evidenceRows = await ctx.db
+          .query("resolutionEvidence")
+          .withIndex("by_issue_and_submitted", (q) => q.eq("issueId", issue._id))
+          .collect();
+        evidenceRows.sort((a, b) => b.submittedAt - a.submittedAt);
+        const evidence = evidenceRows[0] ?? null;
+
+        const votes = await ctx.db
+          .query("communityVotes")
+          .withIndex("by_issue", (q) => q.eq("issueId", issue._id))
+          .collect();
+        const completedCount = votes.filter((v) => v.vote === "completed").length;
+        const needsWorkCount = votes.filter((v) => v.vote === "needs_work").length;
+
+        const comments = await ctx.db
+          .query("communityComments")
+          .withIndex("by_issue_and_time", (q) => q.eq("issueId", issue._id))
+          .collect();
+
+        return { issue, evidence, completedCount, needsWorkCount, commentCount: comments.length };
+      }),
+    );
+
+    return { ...paginated, page: enrichedPage };
+  },
+});
+
 export const myVotes = query({
   args: {},
   handler: async (ctx) => {
@@ -53,13 +109,18 @@ export const myVotes = query({
 });
 
 /**
- * One vote per resident per issue (upsert, so changing your mind is a
- * plain re-vote). Reporters can't vote on their own issue. At
- * VOTE_THRESHOLD+ total votes on a pending_verification issue, a strict
- * majority auto-resolves or auto-reopens it.
+ * Abuse-resistant resident voting:
+ * - 1 authenticated vote per resident per issue
+ * - Reporter cannot vote on their own issue
+ * - Rate limiting on rapid voting
+ * - Creates verification signal and staff triage notification
  */
 export const cast = mutation({
-  args: { issueId: v.id("issues"), vote: v.union(v.literal("completed"), v.literal("needs_work")), comment: v.optional(v.string()) },
+  args: {
+    issueId: v.id("issues"),
+    vote: v.union(v.literal("completed"), v.literal("needs_work")),
+    comment: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
     const issue = await ctx.db.get(args.issueId);
@@ -67,14 +128,26 @@ export const cast = mutation({
     if (!["pending_verification", "resolved"].includes(issue.status)) {
       throw new ConvexError("This issue is not open for community verification");
     }
-    if (issue.reporterId === user._id) throw new ConvexError("You cannot vote on your own report");
+    if (issue.reporterId === user._id) {
+      throw new ConvexError("You cannot vote on your own report");
+    }
+
+    const now = Date.now();
+
+    // Anti-abuse rate limit check
+    const recentVotes = await ctx.db
+      .query("communityVotes")
+      .withIndex("by_user_and_created", (q) => q.eq("userId", user._id).gte("createdAt", now - VOTE_RATE_LIMIT_MS))
+      .collect();
+    if (recentVotes.length >= MAX_VOTES_PER_WINDOW) {
+      throw new ConvexError("Voting too quickly — please wait a moment before voting again.");
+    }
 
     const existing = await ctx.db
       .query("communityVotes")
       .withIndex("by_issue_and_user", (q) => q.eq("issueId", args.issueId).eq("userId", user._id))
       .unique();
 
-    const now = Date.now();
     if (existing) {
       await ctx.db.patch(existing._id, { vote: args.vote, comment: args.comment?.trim() || undefined, updatedAt: now });
     } else {
@@ -96,63 +169,25 @@ export const cast = mutation({
       .collect();
     const completedCount = votes.filter((v) => v.vote === "completed").length;
     const needsWorkCount = votes.filter((v) => v.vote === "needs_work").length;
-    if (completedCount + needsWorkCount < VOTE_THRESHOLD) return;
+    const totalVotes = completedCount + needsWorkCount;
 
-    if (completedCount > needsWorkCount) {
-      const evidence = await ctx.db
-        .query("resolutionEvidence")
-        .withIndex("by_issue", (q) => q.eq("issueId", args.issueId))
-        .collect();
-      if (evidence.length === 0) return;
-      await Promise.all(
-        evidence.filter((e) => !e.verifiedAt).map((e) => ctx.db.patch(e._id, { verifiedAt: now })),
-      );
+    if (totalVotes >= VOTE_THRESHOLD) {
+      const signal = completedCount > needsWorkCount ? "approved" : needsWorkCount > completedCount ? "needs_work" : "inconclusive";
+      await ctx.db.patch(issue._id, {
+        communityVerificationSignal: signal,
+        updatedAt: now,
+      });
 
-      await ctx.db.patch(issue._id, { status: "resolved", updatedAt: now, version: issue.version + 1 });
-      await ctx.db.insert("issueEvents", {
-        issueId: issue._id,
-        status: "resolved",
-        note: `Verified by community vote (${completedCount} completed vs ${needsWorkCount} needs work).`,
-        createdAt: now,
-      });
-      await ctx.db.insert("auditLogs", {
-        actorId: user._id,
-        action: "community.auto_resolve",
-        entityType: "issues",
-        entityId: issue._id,
-        metadata: { completedCount, needsWorkCount },
-        createdAt: now,
-      });
-      await ctx.db.insert("notifications", {
-        userId: issue.reporterId,
-        issueId: issue._id,
-        title: "Verified resolved",
-        body: `Your neighbors confirmed ${issue.trackingId} is fixed.`,
-        createdAt: now,
-      });
-    } else if (needsWorkCount > completedCount) {
-      await ctx.db.patch(issue._id, { status: "reopened", updatedAt: now, version: issue.version + 1 });
-      await ctx.db.insert("issueEvents", {
-        issueId: issue._id,
-        status: "reopened",
-        note: `Reopened by community vote (${needsWorkCount} needs work vs ${completedCount} completed).`,
-        createdAt: now,
-      });
-      await ctx.db.insert("auditLogs", {
-        actorId: user._id,
-        action: "community.auto_reopen",
-        entityType: "issues",
-        entityId: issue._id,
-        metadata: { completedCount, needsWorkCount },
-        createdAt: now,
-      });
-      await ctx.db.insert("notifications", {
-        userId: issue.reporterId,
-        issueId: issue._id,
-        title: "Reopened after review",
-        body: `Neighbors flagged ${issue.trackingId} as still needing work.`,
-        createdAt: now,
-      });
+      // If neighbors flag it as still needing work, notify staff queue and reporter
+      if (signal === "needs_work") {
+        await ctx.db.insert("notifications", {
+          userId: issue.reporterId,
+          issueId: issue._id,
+          title: "Community review update",
+          body: `Community feedback indicates ${issue.trackingId} still needs work. Staff have been alerted for review.`,
+          createdAt: now,
+        });
+      }
     }
   },
 });
@@ -161,21 +196,49 @@ export const addComment = mutation({
   args: { issueId: v.id("issues"), body: v.string() },
   handler: async (ctx, args) => {
     const user = await requireUser(ctx);
-    if (args.body.trim().length === 0) throw new ConvexError("Comment cannot be empty");
+    const trimmed = args.body.trim();
+    if (trimmed.length === 0) throw new ConvexError("Comment cannot be empty");
+    if (trimmed.length > MAX_COMMENT_LENGTH) {
+      throw new ConvexError(`Comment must be ${MAX_COMMENT_LENGTH} characters or less`);
+    }
+
+    const now = Date.now();
+    const recentComments = await ctx.db
+      .query("communityComments")
+      .withIndex("by_user_and_created", (q) => q.eq("userId", user._id).gte("createdAt", now - VOTE_RATE_LIMIT_MS))
+      .collect();
+    if (recentComments.length >= MAX_COMMENTS_PER_WINDOW) {
+      throw new ConvexError("Commenting too fast — please wait a moment.");
+    }
+
     return await ctx.db.insert("communityComments", {
       issueId: args.issueId,
       userId: user._id,
-      body: args.body.trim(),
-      createdAt: Date.now(),
+      body: trimmed,
+      createdAt: now,
     });
   },
 });
 
 export const listComments = query({
-  args: { issueId: v.id("issues") },
-  handler: async (ctx, args) =>
-    await ctx.db
+  args: { issueId: v.id("issues"), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 50;
+    return await ctx.db
       .query("communityComments")
       .withIndex("by_issue_and_time", (q) => q.eq("issueId", args.issueId))
-      .collect(),
+      .order("asc")
+      .take(limit);
+  },
+});
+
+export const paginateComments = query({
+  args: { issueId: v.id("issues"), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("communityComments")
+      .withIndex("by_issue_and_time", (q) => q.eq("issueId", args.issueId))
+      .order("asc")
+      .paginate(args.paginationOpts);
+  },
 });

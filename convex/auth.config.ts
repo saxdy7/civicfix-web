@@ -3,12 +3,15 @@
 // it's your Clerk instance's Frontend API URL, e.g.
 // https://dashing-mustang-3814.clerk.accounts.dev (from the publishable key
 // in apps/web/.env.local: pk_test_<base64 of that domain>).
+const domain = process.env.CLERK_JWT_ISSUER_DOMAIN;
+if (!domain) {
+  console.warn("CLERK_JWT_ISSUER_DOMAIN is not configured in Convex environment.");
+}
+
 export default {
   providers: [
     {
-      domain:
-        process.env.CLERK_JWT_ISSUER_DOMAIN ||
-        "https://dashing-mustang-3814.clerk.accounts.dev",
+      domain: domain ?? "",
       applicationID: "convex",
     },
   ],

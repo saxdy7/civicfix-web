@@ -55,8 +55,15 @@ export function MapGeocoder({
           { headers: { "Accept-Language": "en" } },
         );
         if (!res.ok) throw new Error("Search failed");
-        const data = await res.json();
-        const mapped: GeocoderResult[] = data.map((item: any) => ({
+        interface NominatimItem {
+          place_id: number | string;
+          display_name: string;
+          lat: string;
+          lon: string;
+          type?: string;
+        }
+        const data = (await res.json()) as NominatimItem[];
+        const mapped: GeocoderResult[] = data.map((item) => ({
           id: String(item.place_id),
           name: item.display_name.split(",")[0] || item.display_name,
           displayName: item.display_name,

@@ -166,10 +166,8 @@ export function StaffRequestForm({ session, departments }: StaffRequestFormProps
       window.sessionStorage.setItem(PENDING_KEY, JSON.stringify(toSave));
 
       await setActive({ session: result.createdSessionId });
-      // A full navigation guarantees the server sees the fresh Clerk session
-      // cookie before this page re-renders with `session` populated — the
-      // effect above then finishes submitting the saved request automatically.
-      window.location.assign("/staff/request-access");
+      router.push("/staff/request-access");
+      router.refresh();
     } catch (err) {
       setError(authErrorMessage(err));
       setSubmitting(false);

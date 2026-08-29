@@ -2,6 +2,7 @@
 
 import { useSignIn } from "@clerk/nextjs";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@civicfix/ui-web";
@@ -14,6 +15,7 @@ function authErrorMessage(err: unknown): string {
 }
 
 export function ForgotPasswordForm() {
+  const router = useRouter();
   const { isLoaded, signIn, setActive } = useSignIn();
   const [step, setStep] = useState<"request" | "reset" | "done">("request");
   const [email, setEmail] = useState("");
@@ -77,7 +79,14 @@ export function ForgotPasswordForm() {
               <h1 className={styles.title}>Password updated</h1>
               <p className={styles.subtitle}>You&apos;re signed in with your new password.</p>
             </div>
-            <Button type="button" block onClick={() => window.location.assign("/post-sign-in")}>
+            <Button
+              type="button"
+              block
+              onClick={() => {
+                router.push("/post-sign-in");
+                router.refresh();
+              }}
+            >
               Continue
             </Button>
           </div>

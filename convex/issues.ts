@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -57,10 +58,9 @@ function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number)
 }
 
 /**
- * Resident report submission. Tracking ID is server-generated (never
- * client-supplied), and every new report always starts `reported`/public/
- * unrouted regardless of what the client sends — the same intake-hardening
- * guarantee the old create_issue RPC made.
+ * Resident report submission with automated routing recommendation.
+ * Tracking ID is server-generated, and every new report always starts
+ * `reported`/public/unrouted regardless of what the client sends.
  */
 export const create = mutation({
   args: {
@@ -88,6 +88,15 @@ export const create = mutation({
     const now = Date.now();
     const trackingId = `CF-${Math.floor(10000 + Math.random() * 89999)}-${now.toString(36).slice(-4)}`;
 
+    // Automatic Routing Recommendation (Algorithm based on category, municipality policy, and SLA)
+    const departments = await ctx.db.query("departments").collect();
+    const matchedDept = departments.find((d) => (d.categories as string[]).includes(args.category)) ?? departments[0];
+
+    const suggestedDepartmentId = matchedDept?._id;
+    const routingReason = matchedDept
+      ? `Auto-recommended for ${matchedDept.name} (${matchedDept.slaHours}h SLA target) based on category '${args.category}'.`
+      : "General triage queue recommendation.";
+
     const issueId = await ctx.db.insert("issues", {
       trackingId,
       reporterId: reporter._id,
@@ -96,6 +105,8 @@ export const create = mutation({
       severity: args.severity,
       priority: args.severity,
       status: "reported",
+      suggestedDepartmentId,
+      routingReason,
       isPublic: true,
       version: 1,
       falseReportStatus: "none",
@@ -107,8 +118,21 @@ export const create = mutation({
       updatedAt: now,
     });
 
-    await ctx.db.insert("issueEvents", { issueId, status: "reported", actorId: reporter._id, createdAt: now });
-    return { id: issueId, trackingId };
+    await ctx.db.insert("issueEvents", {
+      issueId,
+      status: "reported",
+      actorId: reporter._id,
+      note: `Report filed. Suggested routing: ${matchedDept?.name ?? "Triage Queue"}.`,
+      createdAt: now,
+    });
+
+    await audit(ctx, reporter._id, "issue.create", "issues", issueId, {
+      category: args.category,
+      severity: args.severity,
+      suggestedDepartmentId,
+    });
+
+    return { id: issueId, trackingId, suggestedDepartmentId, routingReason };
   },
 });
 
@@ -127,8 +151,14 @@ export const getById = query({
       .withIndex("by_issue_and_time", (q) => q.eq("issueId", issue._id))
       .collect();
     const department = issue.departmentId ? await ctx.db.get(issue.departmentId) : null;
+    const suggestedDepartment = issue.suggestedDepartmentId ? await ctx.db.get(issue.suggestedDepartmentId) : null;
 
-    return { ...issue, events, departmentName: department?.name ?? null };
+    return {
+      ...issue,
+      events,
+      departmentName: department?.name ?? null,
+      suggestedDepartmentName: suggestedDepartment?.name ?? null,
+    };
   },
 });
 
@@ -138,7 +168,7 @@ async function requireOptionalUser(ctx: any): Promise<Doc<"users"> | null> {
   return await ctx.db.query("users").withIndex("by_clerk_id", (q: any) => q.eq("clerkId", identity.subject)).unique();
 }
 
-/** Public map / queue listing, filterable — the Convex equivalent of the old issues_select_public RLS-backed query. */
+/** Public map / queue listing, filterable. */
 export const list = query({
   args: {
     status: v.optional(STATUS),
@@ -155,20 +185,22 @@ export const list = query({
     if (args.onlyMine && viewer) {
       rows = await ctx.db
         .query("issues")
-        .withIndex("by_reporter", (q) => q.eq("reporterId", viewer._id))
-        .collect();
+        .withIndex("by_reporter_and_created", (q) => q.eq("reporterId", viewer._id))
+        .order("desc")
+        .take(args.limit ?? 100);
     } else if (args.departmentId) {
       rows = await ctx.db
         .query("issues")
         .withIndex("by_department_and_status", (q) => q.eq("departmentId", args.departmentId))
-        .collect();
+        .take(args.limit ?? 100);
     } else if (args.status) {
       rows = await ctx.db
         .query("issues")
-        .withIndex("by_status", (q) => q.eq("status", args.status!))
-        .collect();
+        .withIndex("by_status_and_created", (q) => q.eq("status", args.status!))
+        .order("desc")
+        .take(args.limit ?? 100);
     } else {
-      rows = await ctx.db.query("issues").collect();
+      rows = await ctx.db.query("issues").withIndex("by_created").order("desc").take(args.limit ?? 100);
     }
 
     rows = rows.filter((r) => !r.deletedAt);
@@ -176,8 +208,35 @@ export const list = query({
     if (args.category) rows = rows.filter((r) => r.category === args.category);
     if (args.status && !args.departmentId) rows = rows.filter((r) => r.status === args.status);
 
-    rows.sort((a, b) => b.createdAt - a.createdAt);
-    return args.limit ? rows.slice(0, args.limit) : rows;
+    return rows;
+  },
+});
+
+export const paginateIssues = query({
+  args: {
+    status: v.optional(STATUS),
+    category: v.optional(CATEGORY),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    if (args.status) {
+      return await ctx.db
+        .query("issues")
+        .withIndex("by_status_and_created", (q) => q.eq("status", args.status!))
+        .order("desc")
+        .paginate(args.paginationOpts);
+    }
+    if (args.category) {
+      return await ctx.db
+        .query("issues")
+        .withIndex("by_category_and_created", (q) => q.eq("category", args.category!))
+        .order("desc")
+        .paginate(args.paginationOpts);
+    }
+    return await ctx.db
+      .query("issues")
+      .withIndex("by_created")
+      .order("desc")
   },
 });
 

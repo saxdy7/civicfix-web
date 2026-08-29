@@ -37,16 +37,26 @@ async function computeAndStoreDailyAudit(ctx: MutationCtx) {
     const now = Date.now();
     const findings: Finding[] = [];
 
-    const issues = await ctx.db.query("issues").collect();
-    const openIssues = issues.filter((i) => !i.deletedAt && !["resolved", "rejected", "duplicate"].includes(i.status));
+    // Focus on active open status categories using indexed queries
+    const [reported, triaged, assigned, inProgress, pendingVerification, recentResolved] = await Promise.all([
+      ctx.db.query("issues").withIndex("by_status", (q) => q.eq("status", "reported")).take(200),
+      ctx.db.query("issues").withIndex("by_status", (q) => q.eq("status", "triaged")).take(200),
+      ctx.db.query("issues").withIndex("by_status", (q) => q.eq("status", "assigned")).take(200),
+      ctx.db.query("issues").withIndex("by_status", (q) => q.eq("status", "in_progress")).take(200),
+      ctx.db.query("issues").withIndex("by_status", (q) => q.eq("status", "pending_verification")).take(200),
+      ctx.db.query("issues").withIndex("by_status", (q) => q.eq("status", "resolved")).order("desc").take(100),
+    ]);
+
+    const openIssues = [...reported, ...triaged, ...assigned, ...inProgress, ...pendingVerification].filter((i) => !i.deletedAt);
+    const auditedIssues = [...openIssues, ...recentResolved.filter((i) => !i.deletedAt)];
 
     // 1. Invalid status transitions — replay each issue's event history against the transition table.
     let invalidTransitions = 0;
-    for (const issue of issues) {
+    for (const issue of auditedIssues) {
       const events = await ctx.db
         .query("issueEvents")
         .withIndex("by_issue_and_time", (q) => q.eq("issueId", issue._id))
-        .collect();
+        .take(50);
       events.sort((a, b) => a.createdAt - b.createdAt);
       for (let i = 1; i < events.length; i++) {
         const allowed = ALLOWED_TRANSITIONS[events[i - 1].status] ?? [];
@@ -113,9 +123,8 @@ async function computeAndStoreDailyAudit(ctx: MutationCtx) {
     }
 
     // 4. Resolved issues missing verified evidence.
-    const resolved = issues.filter((i) => i.status === "resolved");
     let missingEvidence = 0;
-    for (const i of resolved) {
+    for (const i of recentResolved) {
       const evidence = await ctx.db
         .query("resolutionEvidence")
         .withIndex("by_issue", (q) => q.eq("issueId", i._id))
@@ -179,7 +188,7 @@ async function computeAndStoreDailyAudit(ctx: MutationCtx) {
     }
 
     // 8. Repeated fake-report flags — reporters with 2+ confirmed malicious findings.
-    const confirmedMalicious = issues.filter((i) => i.falseReportStatus === "confirmed_malicious");
+    const confirmedMalicious = auditedIssues.filter((i) => i.falseReportStatus === "confirmed_malicious");
     const byReporter = new Map<string, number>();
     for (const i of confirmedMalicious) byReporter.set(i.reporterId, (byReporter.get(i.reporterId) ?? 0) + 1);
     let duplicateClusters = 0;
@@ -198,7 +207,6 @@ async function computeAndStoreDailyAudit(ctx: MutationCtx) {
     }
 
     // 9. Community verification disputes — near-tied vote splits on pending_verification issues.
-    const pendingVerification = issues.filter((i) => i.status === "pending_verification");
     for (const i of pendingVerification) {
       const votes = await ctx.db.query("communityVotes").withIndex("by_issue", (q) => q.eq("issueId", i._id)).collect();
       const completed = votes.filter((v) => v.vote === "completed").length;

@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from "convex/server";
 import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getRoles, isStaff, requireRole, requireUser } from "./lib/auth";
@@ -20,12 +21,13 @@ export const myAssignments = query({
 
 /** Staff-only — every assignment plus its issue and worker, for the admin assignment board. */
 export const listAll = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
     const user = await requireUser(ctx);
     if (!(await isStaff(ctx, user._id))) return [];
 
-    const rows = await ctx.db.query("assignments").collect();
+    const limit = args.limit ?? 100;
+    const rows = await ctx.db.query("assignments").order("desc").take(limit);
     return await Promise.all(
       rows.map(async (a) => {
         const issue = await ctx.db.get(a.issueId);
@@ -33,6 +35,18 @@ export const listAll = query({
         return { ...a, issue, workerName: worker?.fullName ?? worker?.email ?? "Unnamed worker" };
       }),
     );
+  },
+});
+
+export const paginateAssignments = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    if (!(await isStaff(ctx, user._id))) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+
+    return await ctx.db.query("assignments").order("desc").paginate(args.paginationOpts);
   },
 });
 

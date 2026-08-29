@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { api } from "./_generated/api";
+import { internal } from "./_generated/api";
 
 /**
  * Delivers push notifications to all registered device tokens for a given user.
@@ -14,7 +14,7 @@ export const sendPushNotification = action({
     data: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
-    const tokens = await ctx.runQuery(api.notifications.getTokensForUser, { userId: args.userId });
+    const tokens = await ctx.runQuery(internal.notifications.getUserDeviceTokensInternal, { userId: args.userId });
     if (!tokens || tokens.length === 0) return { delivered: 0 };
 
     let delivered = 0;
@@ -51,7 +51,21 @@ export const sendPushNotification = action({
         });
 
         if (res.ok) {
-          delivered += expoTokens.length;
+          const json = await res.json();
+          if (Array.isArray(json.data)) {
+            for (let i = 0; i < json.data.length; i++) {
+              const ticket = json.data[i];
+              if (ticket.status === "ok") {
+                delivered++;
+              } else if (ticket.details?.error === "DeviceNotRegistered") {
+                await ctx.runMutation(internal.notifications.removeInvalidDeviceTokenInternal, {
+                  fcmToken: expoTokens[i],
+                });
+              }
+            }
+          } else {
+            delivered += expoTokens.length;
+          }
         }
       } catch {
         // Safe degrade on network failure
@@ -79,7 +93,14 @@ export const sendPushNotification = action({
             }),
           });
           if (res.ok) {
-            delivered++;
+            const json = await res.json();
+            if (json.failure > 0 && json.results?.[0]?.error === "NotRegistered") {
+              await ctx.runMutation(internal.notifications.removeInvalidDeviceTokenInternal, {
+                fcmToken: token,
+              });
+            } else {
+              delivered++;
+            }
           }
         } catch {
           // Safe degrade

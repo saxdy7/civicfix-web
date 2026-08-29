@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 
 import { Badge, Button, Card } from "@civicfix/ui-web";
@@ -39,14 +39,14 @@ export function TriagePanel({ issue }: { issue: Doc<"issues"> }) {
   const [dupBusy, setDupBusy] = useState(false);
   const [dupError, setDupError] = useState<string | null>(null);
 
-  const [departmentId, setDepartmentId] = useState<Id<"departments"> | "">(issue.departmentId ?? "");
-  useEffect(() => setDepartmentId(issue.departmentId ?? ""), [issue.departmentId]);
+  const [userSelectedDeptId, setUserSelectedDeptId] = useState<Id<"departments"> | null>(null);
+  const departmentId = userSelectedDeptId ?? issue.departmentId ?? "";
   const [assignBusy, setAssignBusy] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [assignSaved, setAssignSaved] = useState<string | null>(null);
 
-  const [workerId, setWorkerId] = useState<Id<"users"> | "">(assignment?.workerId ?? "");
-  useEffect(() => setWorkerId(assignment?.workerId ?? ""), [assignment?.workerId]);
+  const [userSelectedWorkerId, setUserSelectedWorkerId] = useState<Id<"users"> | null>(null);
+  const workerId = userSelectedWorkerId ?? assignment?.workerId ?? "";
   const [workerBusy, setWorkerBusy] = useState(false);
   const [workerError, setWorkerError] = useState<string | null>(null);
   const [workerSaved, setWorkerSaved] = useState<string | null>(null);
@@ -205,7 +205,7 @@ export function TriagePanel({ issue }: { issue: Doc<"issues"> }) {
         <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}>
           <select
             value={departmentId}
-            onChange={(e) => setDepartmentId(e.target.value as Id<"departments">)}
+            onChange={(e) => setUserSelectedDeptId((e.target.value as Id<"departments">) || null)}
             style={{
               border: "1px solid var(--color-border)",
               borderRadius: "var(--radius-control)",
@@ -250,7 +250,7 @@ export function TriagePanel({ issue }: { issue: Doc<"issues"> }) {
             <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}>
               <select
                 value={workerId}
-                onChange={(e) => setWorkerId(e.target.value as Id<"users">)}
+                onChange={(e) => setUserSelectedWorkerId((e.target.value as Id<"users">) || null)}
                 style={{
                   border: "1px solid var(--color-border)",
                   borderRadius: "var(--radius-control)",

@@ -84,6 +84,11 @@ export default defineSchema({
       v.literal("rejected"),
     ),
     departmentId: v.optional(v.id("departments")),
+    suggestedDepartmentId: v.optional(v.id("departments")),
+    routingReason: v.optional(v.string()),
+    communityVerificationSignal: v.optional(
+      v.union(v.literal("approved"), v.literal("needs_work"), v.literal("inconclusive")),
+    ),
     duplicateOfIssueId: v.optional(v.id("issues")),
     latitude: v.number(),
     longitude: v.number(),
@@ -108,12 +113,16 @@ export default defineSchema({
   })
     .index("by_tracking_id", ["trackingId"])
     .index("by_reporter", ["reporterId"])
+    .index("by_reporter_and_created", ["reporterId", "createdAt"])
     .index("by_status", ["status"])
     .index("by_category", ["category"])
+    .index("by_category_and_created", ["category", "createdAt"])
     .index("by_department", ["departmentId"])
     .index("by_department_and_status", ["departmentId", "status"])
     .index("by_status_and_created", ["status", "createdAt"])
-    .index("by_public_and_status", ["isPublic", "status"]),
+    .index("by_public_and_status", ["isPublic", "status"])
+    .index("by_public_and_status_and_created", ["isPublic", "status", "createdAt"])
+    .index("by_created", ["createdAt"]),
 
   // Immutable lifecycle timeline — never updated or deleted, only appended.
   issueEvents: defineTable({
@@ -154,6 +163,7 @@ export default defineSchema({
   })
     .index("by_issue", ["issueId"])
     .index("by_worker", ["workerId"])
+    .index("by_worker_and_created", ["workerId", "createdAt"])
     .index("by_worker_and_completed", ["workerId", "completedAt"]),
 
   resolutionEvidence: defineTable({
@@ -183,7 +193,9 @@ export default defineSchema({
   })
     .index("by_issue", ["issueId"])
     .index("by_issue_and_user", ["issueId", "userId"])
-    .index("by_user", ["userId"]),
+    .index("by_issue_and_created", ["issueId", "createdAt"])
+    .index("by_user", ["userId"])
+    .index("by_user_and_created", ["userId", "createdAt"]),
 
   communityComments: defineTable({
     issueId: v.id("issues"),
@@ -193,7 +205,9 @@ export default defineSchema({
     flaggedBy: v.optional(v.id("users")),
     flagReason: v.optional(v.string()),
     createdAt: v.number(),
-  }).index("by_issue_and_time", ["issueId", "createdAt"]),
+  })
+    .index("by_issue_and_time", ["issueId", "createdAt"])
+    .index("by_user_and_created", ["userId", "createdAt"]),
 
   // ---------------------------------------------------------------------
   // Real-time chat
@@ -214,7 +228,7 @@ export default defineSchema({
     .index("by_issue_and_read", ["issueId", "readAt"]),
 
   // ---------------------------------------------------------------------
-  // Notifications
+  // Notifications & preferences
   // ---------------------------------------------------------------------
   notifications: defineTable({
     userId: v.id("users"),
@@ -226,6 +240,15 @@ export default defineSchema({
   })
     .index("by_user_and_created", ["userId", "createdAt"])
     .index("by_user_and_read", ["userId", "readAt"]),
+
+  notificationPreferences: defineTable({
+    userId: v.id("users"),
+    pushEnabled: v.boolean(),
+    statusUpdates: v.boolean(),
+    chatMessages: v.boolean(),
+    communityAlerts: v.boolean(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
 
   deviceTokens: defineTable({
     userId: v.id("users"),

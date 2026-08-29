@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import type { GeoJSONSource } from "maplibre-gl";
 import { useMap } from "./MapContainer";
 import type { MapMarkerItem } from "./types";
 
@@ -33,8 +34,9 @@ export function MapHeatmap({ items, enabled }: MapHeatmapProps) {
       })),
     };
 
-    if (map.getSource(sourceId)) {
-      (map.getSource(sourceId) as any).setData(geojson);
+    const existingSource = map.getSource(sourceId) as GeoJSONSource | undefined;
+    if (existingSource) {
+      existingSource.setData(geojson);
     } else {
       map.addSource(sourceId, {
         type: "geojson",

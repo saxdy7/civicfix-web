@@ -154,16 +154,7 @@ function ClerkAuthProvider({ children }: PropsWithChildren) {
       signIn: async (identifier, password) => {
         if (!signInLoaded || !signIn) return { error: "Not ready yet — try again in a moment." };
 
-        // A staff member may sign in with their employee ID instead of
-        // email — Clerk itself only signs in by email/username, so this
-        // resolves an ID to the account's email first via a pre-auth
-        // Convex query. A plain email skips the lookup entirely.
         let emailOrUsername = identifier.trim();
-        if (!emailOrUsername.includes("@")) {
-          const resolved = await convex.query(api.users.resolveLoginEmail, { identifier: emailOrUsername });
-          if (!resolved) return { error: "Incorrect email/employee ID or password." };
-          emailOrUsername = resolved;
-        }
 
         try {
           const result = await signIn.create({ identifier: emailOrUsername, password });

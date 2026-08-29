@@ -82,31 +82,31 @@ export function MapContainer({
   style,
 }: MapContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<MapLibreMap | null>(null);
+  const [mapInstance, setMapInstance] = useState<MapLibreMap | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const errorCountRef = useRef(0);
 
   const flyTo = useCallback((coords: Coordinates, targetZoom?: number) => {
-    if (!mapRef.current) return;
-    mapRef.current.flyTo({
+    if (!mapInstance) return;
+    mapInstance.flyTo({
       center: [coords.longitude, coords.latitude],
       zoom: targetZoom ?? 15,
       essential: true,
     });
-  }, []);
+  }, [mapInstance]);
 
   const resetNorth = useCallback(() => {
-    if (!mapRef.current) return;
-    mapRef.current.resetNorthPitch({ duration: 600 });
-  }, []);
+    if (!mapInstance) return;
+    mapInstance.resetNorthPitch({ duration: 600 });
+  }, [mapInstance]);
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!containerRef.current) return;
 
-    let mapInstance: MapLibreMap;
+    let map: MapLibreMap;
     try {
-      mapInstance = new MapLibreMap({
+      map = new MapLibreMap({
         container: containerRef.current,
         style: DEFAULT_MAP_STYLE,
         center,
@@ -115,54 +115,54 @@ export function MapContainer({
         bearing,
       });
     } catch {
-      setFailed(true);
+      queueMicrotask(() => setFailed(true));
       return;
     }
 
     if (showControls) {
-      mapInstance.addControl(new NavigationControl({ showCompass: true }), "top-right");
-      mapInstance.addControl(new GeolocateControl({ trackUserLocation: false }), "top-right");
+      map.addControl(new NavigationControl({ showCompass: true }), "top-right");
+      map.addControl(new GeolocateControl({ trackUserLocation: false }), "top-right");
     }
 
-    mapInstance.on("load", () => {
+    map.on("load", () => {
       setIsLoaded(true);
     });
 
-    mapInstance.on("error", () => {
+    map.on("error", () => {
       errorCountRef.current += 1;
       if (errorCountRef.current > 8) setFailed(true);
     });
 
     if (onMoveEnd) {
-      mapInstance.on("moveend", () => {
-        const c = mapInstance.getCenter();
+      map.on("moveend", () => {
+        const c = map.getCenter();
         onMoveEnd({
           center: [c.lng, c.lat],
-          zoom: mapInstance.getZoom(),
-          pitch: mapInstance.getPitch(),
-          bearing: mapInstance.getBearing(),
+          zoom: map.getZoom(),
+          pitch: map.getPitch(),
+          bearing: map.getBearing(),
         });
       });
     }
 
     if (onClick) {
-      mapInstance.on("click", (e) => {
+      map.on("click", (e) => {
         onClick({ latitude: e.lngLat.lat, longitude: e.lngLat.lng });
       });
     }
 
-    mapRef.current = mapInstance;
+    setMapInstance(map);
 
     return () => {
-      mapInstance.remove();
-      mapRef.current = null;
+      map.remove();
+      setMapInstance(null);
       setIsLoaded(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <MapContext.Provider value={{ map: mapRef.current, isLoaded, flyTo, resetNorth }}>
+    <MapContext.Provider value={{ map: mapInstance, isLoaded, flyTo, resetNorth }}>
       <div className={`${styles.wrapper} ${className ?? ""}`} style={style}>
         <div ref={containerRef} className={styles.canvas} aria-hidden={failed} />
         {failed ? (

@@ -2,16 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.health import router as health_router
-from app.api.v1.issues import router as issues_router
 from app.api.v1.triage import router as triage_router
-from app.api.v1.audit import router as audit_router
 from app.core.config import get_settings
 
 settings = get_settings()
 
 app = FastAPI(
-    title="CivicFix API",
-    description="AI-powered civic issue resolution platform API",
+    title="CivicFix AI Adapter API",
+    description="Optional AI adapter service for CivicFix. Convex is the canonical database and workflow engine.",
     version="1.0.0",
     root_path="",
 )
@@ -25,6 +23,5 @@ app.add_middleware(
 )
 
 app.include_router(health_router, prefix="/v1")
-app.include_router(issues_router, prefix="/v1")
 app.include_router(triage_router, prefix="/v1")
-app.include_router(audit_router, prefix="/v1")
+
