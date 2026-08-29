@@ -46,6 +46,12 @@ export async function middleware(request: NextRequest) {
   if (!isProtected) return response;
 
   if (!user) {
+    // Field workers and department managers reach /admin/** through the
+    // regular resident-style sign-in (their own email/password) — only
+    // `administrator` accounts use the separate UID login at /admin-login,
+    // reached via an explicit link rather than this default redirect, so
+    // non-admin staff bookmarking an admin URL aren't shown a login form
+    // that doesn't apply to them.
     const redirectUrl = new URL("/sign-in", request.url);
     redirectUrl.searchParams.set("next", path);
     return NextResponse.redirect(redirectUrl);

@@ -1,0 +1,131 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.tracking {
+  margin: 0;
+  font-weight: 700;
+  font-size: var(--font-size-md);
+  color: var(--color-foreground);
+}
+
+.meta {
+  margin: 2px 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+}
+
+.photoRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.photoCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.photoLabel {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted-foreground);
+}
+
+.photo {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-border);
+}
+
+.photoPlaceholder {
+  width: 100%;
+  height: 140px;
+  border-radius: var(--radius-control);
+  border: 1px dashed var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-dim-foreground);
+  font-size: var(--font-size-xs);
+}
+
+.completionNote {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted-foreground);
+  line-height: 1.6;
+}
+
+.progressRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.progressTrack {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-civic-green);
+  border-radius: var(--radius-pill);
+}
+
+.progressLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+}
+
+.resolvedNote {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-civic-green);
+}
+
+.votedNote {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-muted-foreground);
+}
+
+.commentBox {
+  min-height: 64px;
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-foreground);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  resize: vertical;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.errorText {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-civic-red);
+}

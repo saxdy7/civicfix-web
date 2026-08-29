@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Button } from "../../../components/Button";
 import { Card } from "../../../components/Card";
 import { EmptyState } from "../../../components/EmptyState";
+import { IssueChat } from "../../../components/IssueChat";
 import { ScreenContainer } from "../../../components/ScreenContainer";
 import { useAuth } from "../../../lib/auth-context";
 import { acceptAssignment, fetchAssignmentById } from "../../../lib/repositories/assignments";
@@ -114,6 +115,8 @@ export default function AssignmentDetail() {
           </Text>
         </View>
       </Card>
+
+      {user ? <IssueChat issueId={assignment.issueId} currentUserId={user.id} senderRole="staff" /> : null}
     </ScreenContainer>
   );
 }

@@ -23,6 +23,7 @@ function buildNavGroups(counts?: ResidentCounts) {
       items: [
         { href: "/app", label: "Overview" },
         { href: "/app/reports", label: "My reports", count: counts?.reports },
+        { href: "/app/community", label: "Community" },
         { href: "/app/notifications", label: "Notifications", count: counts?.notifications },
       ],
     },

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Card } from "@civicfix/ui-web";
 
+import { IssueChat } from "@/components/IssueChat";
 import { StatusPill } from "@/components/StatusPill";
 import {
   mapIssueRow,
@@ -152,13 +153,9 @@ export default async function ResidentReportDetailPage({
             </div>
           </Card>
 
-          <Card style={{ marginTop: "var(--space-4)" }}>
-            <h2 className={styles.sectionTitle}>Need to add something?</h2>
-            <p className={styles.hint}>
-              You can add a comment or extra photo to an open report. Quote{" "}
-              {issue.trackingId} if you contact the department directly.
-            </p>
-          </Card>
+          <div style={{ marginTop: "var(--space-4)" }}>
+            <IssueChat issueId={issue.id} currentUserId={session.userId} senderRole="resident" />
+          </div>
         </div>
       </div>
     </div>

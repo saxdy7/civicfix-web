@@ -1,15 +1,16 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, Text, View, StyleSheet } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
+import { IssueChat } from "../../components/IssueChat";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useAuth } from "../../lib/auth-context";
 import { fetchMyIssueById } from "../../lib/repositories/issues";
 import { CATEGORY_LABEL, STATUS_LABEL, STATUS_SHORT_LABEL } from "../../lib/status";
-import { color, fontSize, spacing } from "../../lib/theme";
+import { color, fontFamily, fontSize, spacing } from "../../lib/theme";
 import type { Issue } from "../../lib/types";
 
 export default function ReportDetail() {
@@ -17,10 +18,12 @@ export default function ReportDetail() {
   const { user } = useAuth();
   const [issue, setIssue] = useState<Issue | null | undefined>(undefined);
 
-  useEffect(() => {
-    if (!user || !id) return;
-    fetchMyIssueById(id, user.id).then(setIssue);
-  }, [id, user]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!user || !id) return;
+      fetchMyIssueById(id, user.id).then(setIssue);
+    }, [id, user]),
+  );
 
   if (issue === undefined) {
     return (
@@ -30,7 +33,7 @@ export default function ReportDetail() {
     );
   }
 
-  if (!issue) {
+  if (!issue || !user) {
     return (
       <ScreenContainer edges={["left", "right"]}>
         <EmptyState title="Report not found" description="This report may have been removed." />
@@ -68,6 +71,9 @@ export default function ReportDetail() {
           </View>
         ))}
       </Card>
+
+      <Text style={styles.sectionTitle}>Message the department</Text>
+      <IssueChat issueId={issue.id} currentUserId={user.id} senderRole="resident" />
     </ScreenContainer>
   );
 }
@@ -80,25 +86,27 @@ const styles = StyleSheet.create({
   },
   trackingId: {
     fontSize: fontSize.lg,
-    fontWeight: "800",
+    fontFamily: fontFamily.bold,
     color: color.foreground,
   },
   currentStatus: {
     fontSize: fontSize.md,
-    fontWeight: "600",
+    fontFamily: fontFamily.semibold,
     color: color.civicBlue,
   },
   meta: {
     fontSize: fontSize.sm,
+    fontFamily: fontFamily.regular,
     color: color.mutedForeground,
   },
   description: {
     fontSize: fontSize.sm,
+    fontFamily: fontFamily.regular,
     color: color.foreground,
   },
   sectionTitle: {
     fontSize: fontSize.lg,
-    fontWeight: "700",
+    fontFamily: fontFamily.semibold,
     color: color.foreground,
   },
   timelineRow: {
@@ -122,15 +130,17 @@ const styles = StyleSheet.create({
   },
   timelineStatus: {
     fontSize: fontSize.sm,
-    fontWeight: "700",
+    fontFamily: fontFamily.semibold,
     color: color.foreground,
   },
   timelineNote: {
     fontSize: fontSize.xs,
+    fontFamily: fontFamily.regular,
     color: color.mutedForeground,
   },
   timelineDate: {
     fontSize: fontSize.xs,
+    fontFamily: fontFamily.regular,
     color: color.mutedForeground,
   },
 });

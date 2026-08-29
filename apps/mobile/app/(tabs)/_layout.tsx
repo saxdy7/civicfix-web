@@ -55,6 +55,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="community"
+        options={{
+          title: "Community",
+          href: isFieldWorker ? null : undefined,
+          tabBarIcon: ({ color: c, size }) => <Ionicons name="people-outline" size={size} color={c} />,
+        }}
+      />
+      <Tabs.Screen
         name="assignments"
         options={{
           title: "Assignments",

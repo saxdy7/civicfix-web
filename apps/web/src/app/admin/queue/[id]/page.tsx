@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 
 import { Card } from "@civicfix/ui-web";
 
+import { IssueChat } from "@/components/IssueChat";
 import { StatusPill } from "@/components/StatusPill";
 import { mapIssueEventRow, mapIssueRow, type IssueRow } from "@/lib/admin-mappers";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createServerSupabase, getSessionProfile } from "@/lib/supabase-server";
 import { CATEGORY_LABEL, SEVERITY_LABEL } from "@/lib/status";
 import type { IssueCategory } from "@/lib/types";
 
@@ -33,6 +34,7 @@ function readSuggestedCategory(row: AiAssessmentRow | null): { category: IssueCa
 export default async function IssueTriagePage({ params }: PageProps<"/admin/queue/[id]">) {
   const { id } = await params;
   const supabase = await createServerSupabase();
+  const session = await getSessionProfile();
 
   if (!supabase) {
     return (
@@ -163,6 +165,12 @@ export default async function IssueTriagePage({ params }: PageProps<"/admin/queu
           workerName={workerName}
         />
       </div>
+
+      {session ? (
+        <div style={{ marginTop: "var(--space-4)" }}>
+          <IssueChat issueId={issue.id} currentUserId={session.userId} senderRole="staff" />
+        </div>
+      ) : null}
     </div>
   );
 }

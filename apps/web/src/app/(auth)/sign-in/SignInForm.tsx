@@ -146,6 +146,9 @@ export function SignInForm() {
           <p className={styles.footNote}>
             City employee? <Link href="/staff/request-access">Request staff access</Link>
           </p>
+          <p className={styles.footNote}>
+            Administrator? <Link href="/admin-login">Sign in here</Link>
+          </p>
 
           {!isSupabaseConfigured ? (
             <p className={styles.demoHint}>
