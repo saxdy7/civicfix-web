@@ -31,7 +31,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     : { name: "Staff", email: "", role: "Staff" };
 
   return (
-    <AdminShell user={user} pendingAccessRequests={pendingAccessRequests}>
+    <AdminShell user={user} pendingAccessRequests={pendingAccessRequests} isAdmin={session?.isAdmin ?? false}>
       {children}
     </AdminShell>
   );

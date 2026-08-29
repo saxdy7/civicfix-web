@@ -9,31 +9,40 @@ import { useDashboardTheme } from "@/lib/dashboard-theme";
 
 import styles from "./AdminShell.module.css";
 
-const NAV_GROUPS = [
-  {
-    label: "Overview",
-    items: [
-      { href: "/admin", label: "Dashboard" },
-      { href: "/admin/queue", label: "Issue queue" },
-      { href: "/admin/assignments", label: "Assignment board" },
-    ],
-  },
-  {
-    label: "Operations",
-    items: [
-      { href: "/admin/departments", label: "Departments & SLA" },
-      { href: "/admin/analytics", label: "Analytics" },
-      { href: "/admin/audit", label: "Daily audit" },
-    ],
-  },
-  {
-    label: "Settings",
-    items: [
-      { href: "/admin/access-requests", label: "Access requests" },
-      { href: "/admin/users", label: "Users & roles" },
-    ],
-  },
-];
+function buildNavGroups(isAdmin: boolean) {
+  return [
+    {
+      label: "Overview",
+      items: [
+        { href: "/admin", label: "Dashboard" },
+        { href: "/admin/queue", label: "Issue queue" },
+        { href: "/admin/assignments", label: "Assignment board" },
+      ],
+    },
+    {
+      label: "Operations",
+      items: [
+        { href: "/admin/departments", label: "Departments & SLA" },
+        { href: "/admin/analytics", label: "Analytics" },
+        { href: "/admin/audit", label: "Daily audit" },
+      ],
+    },
+    // Granting/reviewing privileged roles is administrator-only — a
+    // department manager or auditor signing in never sees a section they
+    // can look at but never act on (the RPCs behind it already reject them).
+    ...(isAdmin
+      ? [
+          {
+            label: "Settings",
+            items: [
+              { href: "/admin/access-requests", label: "Access requests" },
+              { href: "/admin/users", label: "Users & roles" },
+            ],
+          },
+        ]
+      : []),
+  ];
+}
 
 interface AdminUser {
   name: string;
@@ -51,13 +60,17 @@ export function AdminShell({
   children,
   user,
   pendingAccessRequests = 0,
+  isAdmin = false,
 }: {
   children: ReactNode;
   user: AdminUser;
   /** Real count of `staff_access_requests` with status='pending', fetched in admin/layout.tsx. */
   pendingAccessRequests?: number;
+  /** Only administrators see the "Settings" nav section (access requests, user roles). */
+  isAdmin?: boolean;
 }) {
   const pathname = usePathname();
+  const NAV_GROUPS = buildNavGroups(isAdmin);
   const { theme, toggleTheme } = useDashboardTheme();
 
   return (

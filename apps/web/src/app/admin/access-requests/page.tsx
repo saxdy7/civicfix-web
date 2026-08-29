@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
+
 import { Card } from "@civicfix/ui-web";
 
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createServerSupabase, getSessionProfile } from "@/lib/supabase-server";
 
 import { AccessRequestTable, type AccessRequestRow } from "./AccessRequestTable";
 import styles from "../admin.module.css";
@@ -44,6 +46,9 @@ async function loadRequests(): Promise<AccessRequestRow[] | null> {
 }
 
 export default async function AccessRequestsPage() {
+  const session = await getSessionProfile();
+  if (!session?.isAdmin) redirect("/admin");
+
   const requests = await loadRequests();
 
   return (

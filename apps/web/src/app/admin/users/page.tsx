@@ -1,7 +1,9 @@
+import { redirect } from "next/navigation";
+
 import { Badge, Card } from "@civicfix/ui-web";
 
 import { STAFF_ROLES } from "@/lib/admin-mappers";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { createServerSupabase, getSessionProfile } from "@/lib/supabase-server";
 import type { StaffUser } from "@/lib/types";
 
 import styles from "../admin.module.css";
@@ -61,6 +63,9 @@ async function loadStaff(): Promise<StaffUser[] | null> {
 }
 
 export default async function UsersPage() {
+  const session = await getSessionProfile();
+  if (!session?.isAdmin) redirect("/admin");
+
   const users = await loadStaff();
 
   return (
