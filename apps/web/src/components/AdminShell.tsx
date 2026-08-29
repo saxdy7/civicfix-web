@@ -1,11 +1,15 @@
 "use client";
 
+import { useClerk } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { CivicBotWidget } from "@/components/chatbot";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useDashboardTheme } from "@/lib/dashboard-theme";
+
+import { api } from "@convex/_generated/api";
 
 import styles from "./AdminShell.module.css";
 
@@ -23,13 +27,16 @@ function buildNavGroups(isAdmin: boolean) {
       label: "Operations",
       items: [
         { href: "/admin/departments", label: "Departments & SLA" },
+        { href: "/admin/community", label: "Community votes" },
+        { href: "/admin/trust", label: "Trust & false reports" },
         { href: "/admin/analytics", label: "Analytics" },
         { href: "/admin/audit", label: "Daily audit" },
       ],
     },
     // Granting/reviewing privileged roles is administrator-only — a
     // department manager or auditor signing in never sees a section they
-    // can look at but never act on (the RPCs behind it already reject them).
+    // can look at but never act on (the mutations behind it already reject
+    // them server-side).
     ...(isAdmin
       ? [
           {
@@ -59,19 +66,21 @@ function initials(name: string): string {
 export function AdminShell({
   children,
   user,
-  pendingAccessRequests = 0,
   isAdmin = false,
 }: {
   children: ReactNode;
   user: AdminUser;
-  /** Real count of `staff_access_requests` with status='pending', fetched in admin/layout.tsx. */
-  pendingAccessRequests?: number;
   /** Only administrators see the "Settings" nav section (access requests, user roles). */
   isAdmin?: boolean;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { signOut } = useClerk();
   const NAV_GROUPS = buildNavGroups(isAdmin);
   const { theme, toggleTheme } = useDashboardTheme();
+
+  const pendingRequests = useQuery(api.staffAccessRequests.list, {});
+  const pendingCount = isAdmin ? (pendingRequests ?? []).filter((r) => r.status === "pending").length : 0;
 
   return (
     <div className={styles.shell} data-theme={theme}>
@@ -95,9 +104,7 @@ export function AdminShell({
             {group.items.map((item) => {
               const isActive =
                 item.href === "/admin" ? pathname === item.href : pathname.startsWith(item.href);
-              const badge = item.href === "/admin/access-requests" && pendingAccessRequests > 0
-                ? pendingAccessRequests
-                : null;
+              const badge = item.href === "/admin/access-requests" && pendingCount > 0 ? pendingCount : null;
               return (
                 <Link
                   key={item.href}
@@ -122,6 +129,14 @@ export function AdminShell({
               <div className={styles.userRole}>{user.role}</div>
             </div>
           </div>
+          <button
+            type="button"
+            className={styles.backLink}
+            style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}
+            onClick={() => signOut(() => router.push("/"))}
+          >
+            Sign out
+          </button>
           <Link href="/" className={styles.backLink}>
             ← Back to public site
           </Link>

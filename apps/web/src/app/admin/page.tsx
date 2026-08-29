@@ -1,80 +1,35 @@
+"use client";
+
 import Link from "next/link";
+import { useQuery } from "convex/react";
 
 import { Card } from "@civicfix/ui-web";
 
 import { ApiStatus } from "@/components/ApiStatus";
 import { StatusPill } from "@/components/StatusPill";
 import { isOverdue } from "@/lib/admin-mappers";
-import { createServerSupabase } from "@/lib/supabase-server";
 import { CATEGORY_LABEL } from "@/lib/status";
-import type { IssueCategory, IssueStatus } from "@/lib/types";
+
+import { api } from "@convex/_generated/api";
 
 import styles from "./admin.module.css";
 
-interface RecentIssueRow {
-  id: string;
-  tracking_id: string;
-  category: IssueCategory;
-  status: IssueStatus;
-  neighborhood: string | null;
-  updated_at: string;
-  departments: { name: string } | null;
-}
+export default function AdminDashboardPage() {
+  const issues = useQuery(api.issues.list, {});
+  const departments = useQuery(api.departments.list, {});
+  const assignments = useQuery(api.assignments.listAll, {});
+  const accessRequests = useQuery(api.staffAccessRequests.list, {});
 
-interface OverdueCheckRow {
-  status: IssueStatus;
-  created_at: string;
-  departments: { sla_hours: number } | null;
-}
+  const loading = issues === undefined || departments === undefined || assignments === undefined || accessRequests === undefined;
 
-async function loadDashboard() {
-  const supabase = await createServerSupabase();
-  if (!supabase) return null;
-
-  const [openIssuesRes, overdueRowsRes, activeAssignmentsRes, pendingAccessRes, recentIssuesRes] =
-    await Promise.all([
-      supabase
-        .from("issues")
-        .select("id", { count: "exact", head: true })
-        .is("deleted_at", null)
-        .not("status", "in", "(resolved,rejected)"),
-      supabase
-        .from("issues")
-        .select("status, created_at, departments(sla_hours)")
-        .is("deleted_at", null)
-        .not("status", "in", "(resolved,rejected,duplicate)"),
-      supabase
-        .from("assignments")
-        .select("id", { count: "exact", head: true })
-        .is("completed_at", null),
-      supabase
-        .from("staff_access_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending"),
-      supabase
-        .from("issues")
-        .select("id, tracking_id, category, status, neighborhood, updated_at, departments(name)")
-        .is("deleted_at", null)
-        .order("updated_at", { ascending: false })
-        .limit(5),
-    ]);
-
-  const overdueRows = (overdueRowsRes.data ?? []) as unknown as OverdueCheckRow[];
-  const overdueCount = overdueRows.filter((row) =>
-    isOverdue(row.created_at, row.departments?.sla_hours ?? 72, row.status),
+  const deptById = new Map((departments ?? []).map((d) => [d._id, d]));
+  const openIssues = (issues ?? []).filter((i) => !["resolved", "rejected"].includes(i.status));
+  const overdueCount = openIssues.filter((i) =>
+    isOverdue(i.createdAt, i.departmentId ? (deptById.get(i.departmentId)?.slaHours ?? 72) : 72, i.status),
   ).length;
-
-  return {
-    openIssuesCount: openIssuesRes.count ?? 0,
-    overdueCount,
-    activeAssignmentsCount: activeAssignmentsRes.count ?? 0,
-    pendingAccessRequestsCount: pendingAccessRes.count ?? 0,
-    recentIssues: (recentIssuesRes.data ?? []) as unknown as RecentIssueRow[],
-  };
-}
-
-export default async function AdminDashboardPage() {
-  const dashboard = await loadDashboard();
+  const activeAssignmentsCount = (assignments ?? []).filter((a) => !a.completedAt).length;
+  const pendingAccessCount = (accessRequests ?? []).filter((r) => r.status === "pending").length;
+  const recentIssues = [...(issues ?? [])].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5);
 
   return (
     <div>
@@ -83,28 +38,28 @@ export default async function AdminDashboardPage() {
         <p className={styles.subtitle}>Today&apos;s snapshot of triage, SLA, and field activity.</p>
       </div>
 
-      {dashboard ? (
+      {loading ? (
+        <Card>
+          <p className={styles.emptyState}>Loading…</p>
+        </Card>
+      ) : (
         <>
           <div className={styles.statGrid}>
             <Card className={styles.statCard}>
-              <span className={styles.statValue}>{dashboard.openIssuesCount}</span>
+              <span className={styles.statValue}>{openIssues.length}</span>
               <span className={styles.statLabel}>Open issues</span>
             </Card>
             <Card className={styles.statCard}>
-              <span className={styles.statValue}>{dashboard.overdueCount}</span>
+              <span className={styles.statValue}>{overdueCount}</span>
               <span className={`${styles.statDelta} ${styles.deltaBad}`}>SLA overdue</span>
             </Card>
             <Card className={styles.statCard}>
-              <span className={styles.statValue}>{dashboard.activeAssignmentsCount}</span>
+              <span className={styles.statValue}>{activeAssignmentsCount}</span>
               <span className={styles.statLabel}>Active assignments</span>
             </Card>
             <Card className={styles.statCard}>
-              <span className={styles.statValue}>{dashboard.pendingAccessRequestsCount}</span>
-              <span
-                className={`${styles.statDelta} ${
-                  dashboard.pendingAccessRequestsCount > 0 ? styles.deltaBad : styles.deltaGood
-                }`}
-              >
+              <span className={styles.statValue}>{pendingAccessCount}</span>
+              <span className={`${styles.statDelta} ${pendingAccessCount > 0 ? styles.deltaBad : styles.deltaGood}`}>
                 Pending access requests
               </span>
             </Card>
@@ -117,7 +72,7 @@ export default async function AdminDashboardPage() {
 
           <h2 className={styles.sectionTitle}>Recent activity</h2>
           <Card>
-            {dashboard.recentIssues.length === 0 ? (
+            {recentIssues.length === 0 ? (
               <p className={styles.emptyState}>No reports yet.</p>
             ) : (
               <div className={styles.tableWrap}>
@@ -132,17 +87,17 @@ export default async function AdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboard.recentIssues.map((issue) => (
-                      <tr key={issue.id}>
+                    {recentIssues.map((issue) => (
+                      <tr key={issue._id}>
                         <td>
-                          <Link href={`/admin/queue/${issue.id}`}>{issue.tracking_id}</Link>
+                          <Link href={`/admin/queue/${issue._id}`}>{issue.trackingId}</Link>
                         </td>
                         <td>{CATEGORY_LABEL[issue.category]}</td>
                         <td>{issue.neighborhood ?? "Unknown"}</td>
                         <td>
                           <StatusPill status={issue.status} />
                         </td>
-                        <td>{new Date(issue.updated_at).toLocaleDateString()}</td>
+                        <td>{new Date(issue.updatedAt).toLocaleDateString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -151,12 +106,6 @@ export default async function AdminDashboardPage() {
             )}
           </Card>
         </>
-      ) : (
-        <Card>
-          <p className={styles.emptyState}>
-            Supabase is not configured — connect it to see live operations data here.
-          </p>
-        </Card>
       )}
     </div>
   );

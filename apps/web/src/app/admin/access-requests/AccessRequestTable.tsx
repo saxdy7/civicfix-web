@@ -1,56 +1,51 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "convex/react";
 
 import { Badge, Button } from "@civicfix/ui-web";
 
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 
 import styles from "../admin.module.css";
-
-export interface AccessRequestRow {
-  id: string;
-  name: string;
-  email: string;
-  employeeId: string;
-  department: string;
-  role: string;
-  status: "pending" | "approved" | "rejected";
-  requestedAt: string;
-  reviewNote: string | null;
-}
 
 const ROLE_LABEL: Record<string, string> = {
   field_worker: "Field worker",
   department_manager: "Department manager",
 };
 
-export function AccessRequestTable({ requests }: { requests: AccessRequestRow[] }) {
-  const router = useRouter();
+export function AccessRequestTable() {
+  const requests = useQuery(api.staffAccessRequests.list, {});
+  const departments = useQuery(api.departments.list, {});
+  const deptById = new Map((departments ?? []).map((d) => [d._id, d.name]));
+
+  const approve = useMutation(api.staffAccessRequests.approve);
+  const reject = useMutation(api.staffAccessRequests.reject);
+
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  async function decide(id: string, action: "approve" | "reject") {
-    if (!supabase) return;
+  async function decide(id: Id<"staffAccessRequests">, action: "approve" | "reject") {
     setBusyId(id);
     setErrors((prev) => ({ ...prev, [id]: "" }));
     try {
-      const { error } = await supabase.rpc(
-        action === "approve" ? "approve_staff_access_request" : "reject_staff_access_request",
-        { request_id: id },
-      );
-      if (error) throw error;
-      router.refresh();
+      await (action === "approve" ? approve : reject)({ requestId: id });
     } catch (err) {
-      setErrors((prev) => ({
-        ...prev,
-        [id]: err instanceof Error ? err.message : "Could not record this decision.",
-      }));
+      setErrors((prev) => ({ ...prev, [id]: err instanceof Error ? err.message : "Could not record this decision." }));
     } finally {
       setBusyId(null);
     }
   }
+
+  if (requests === undefined) {
+    return <p className={styles.emptyState}>Loading…</p>;
+  }
+  if (requests.length === 0) {
+    return <p className={styles.emptyState}>No access requests yet.</p>;
+  }
+
+  const sorted = [...requests].sort((a, b) => b.createdAt - a.createdAt);
 
   return (
     <div className={styles.tableWrap}>
@@ -67,13 +62,13 @@ export function AccessRequestTable({ requests }: { requests: AccessRequestRow[] 
           </tr>
         </thead>
         <tbody>
-          {requests.map((req) => (
-            <tr key={req.id}>
-              <td>{req.name}</td>
-              <td>{req.email}</td>
+          {sorted.map((req) => (
+            <tr key={req._id}>
+              <td>{req.fullName}</td>
+              <td>{req.workEmail}</td>
               <td>{req.employeeId}</td>
-              <td>{req.department}</td>
-              <td>{ROLE_LABEL[req.role] ?? req.role}</td>
+              <td>{req.departmentId ? (deptById.get(req.departmentId) ?? "—") : "—"}</td>
+              <td>{ROLE_LABEL[req.requestedRole] ?? req.requestedRole}</td>
               <td>
                 {req.status === "approved" ? (
                   <Badge tone="success">Approved</Badge>
@@ -87,23 +82,16 @@ export function AccessRequestTable({ requests }: { requests: AccessRequestRow[] 
                 {req.status === "pending" ? (
                   <div>
                     <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                      <Button
-                        onClick={() => decide(req.id, "approve")}
-                        disabled={busyId === req.id || !isSupabaseConfigured}
-                      >
-                        {busyId === req.id ? "Working…" : "Approve"}
+                      <Button onClick={() => decide(req._id, "approve")} disabled={busyId === req._id}>
+                        {busyId === req._id ? "Working…" : "Approve"}
                       </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => decide(req.id, "reject")}
-                        disabled={busyId === req.id || !isSupabaseConfigured}
-                      >
+                      <Button variant="secondary" onClick={() => decide(req._id, "reject")} disabled={busyId === req._id}>
                         Reject
                       </Button>
                     </div>
-                    {errors[req.id] ? (
+                    {errors[req._id] ? (
                       <p role="alert" className={styles.errorText} style={{ marginTop: "var(--space-2)" }}>
-                        {errors[req.id]}
+                        {errors[req._id]}
                       </p>
                     ) : null}
                   </div>

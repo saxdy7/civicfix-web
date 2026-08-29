@@ -1,145 +1,69 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import { useMutation, useQuery } from "convex/react";
 
 import { Button, Card } from "@civicfix/ui-web";
 
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 
 import styles from "./IssueChat.module.css";
 
-interface Message {
-  id: string;
-  senderId: string;
-  senderRole: "resident" | "staff";
-  body: string;
-  createdAt: string;
-  readAt: string | null;
-}
+/**
+ * Convex's useQuery is a live subscription by default — new messages appear
+ * for both parties the instant they're written, with no manual realtime
+ * channel or polling to wire up.
+ */
+export function IssueChat({ issueId, senderRole }: { issueId: Id<"issues">; senderRole: "resident" | "staff" }) {
+  const viewer = useQuery(api.users.viewer, {});
+  const messages = useQuery(api.issueMessages.listForIssue, { issueId });
+  const send = useMutation(api.issueMessages.send);
+  const markRead = useMutation(api.issueMessages.markRead);
 
-interface RawMessageRow {
-  id: string;
-  sender_id: string;
-  sender_role: "resident" | "staff";
-  body: string;
-  created_at: string;
-  read_at: string | null;
-}
-
-function mapRow(row: RawMessageRow): Message {
-  return {
-    id: row.id,
-    senderId: row.sender_id,
-    senderRole: row.sender_role,
-    body: row.body,
-    createdAt: row.created_at,
-    readAt: row.read_at,
-  };
-}
-
-export function IssueChat({
-  issueId,
-  currentUserId,
-  senderRole,
-}: {
-  issueId: string;
-  currentUserId: string;
-  senderRole: "resident" | "staff";
-}) {
-  const [messages, setMessages] = useState<Message[] | null>(isSupabaseConfigured ? null : []);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!supabase) return;
-
-    let channel: RealtimeChannel | null = null;
-    let active = true;
-
-    async function load() {
-      if (!supabase) return;
-      const { data } = await supabase
-        .from("issue_messages")
-        .select("id, sender_id, sender_role, body, created_at, read_at")
-        .eq("issue_id", issueId)
-        .order("created_at", { ascending: true });
-
-      if (!active) return;
-      setMessages(((data as RawMessageRow[] | null) ?? []).map(mapRow));
-      await supabase.rpc("mark_issue_messages_read", { p_issue_id: issueId });
-
-      channel = supabase
-        .channel(`issue-messages-${issueId}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "issue_messages", filter: `issue_id=eq.${issueId}` },
-          (payload) => {
-            const row = payload.new as RawMessageRow;
-            setMessages((prev) => (prev ? [...prev, mapRow(row)] : [mapRow(row)]));
-            if (row.sender_id !== currentUserId) {
-              supabase?.rpc("mark_issue_messages_read", { p_issue_id: issueId });
-            }
-          },
-        )
-        .subscribe();
-    }
-
-    load();
-
-    return () => {
-      active = false;
-      if (channel) supabase?.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [issueId]);
+    if (messages && messages.length > 0) void markRead({ issueId });
+  }, [messages, issueId, markRead]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [messages]);
 
   const handleSend = async () => {
-    if (!draft.trim() || !supabase) return;
+    if (!draft.trim()) return;
     setSending(true);
     setError(null);
-    const { error: insertError } = await supabase.from("issue_messages").insert({
-      issue_id: issueId,
-      sender_id: currentUserId,
-      sender_role: senderRole,
-      body: draft.trim(),
-    });
-    setSending(false);
-    if (insertError) {
-      setError(insertError.message);
-      return;
+    try {
+      await send({ issueId, body: draft.trim(), senderRole });
+      setDraft("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send this message.");
+    } finally {
+      setSending(false);
     }
-    setDraft("");
   };
-
-  if (!isSupabaseConfigured) {
-    return (
-      <Card>
-        <p className={styles.emptyHint}>Chat isn&apos;t available in preview mode — Supabase isn&apos;t configured.</p>
-      </Card>
-    );
-  }
 
   return (
     <Card className={styles.card}>
       <h2 className={styles.title}>Conversation</h2>
       <div className={styles.list} ref={listRef}>
-        {messages === null ? (
+        {messages === undefined ? (
           <p className={styles.emptyHint}>Loading…</p>
         ) : messages.length === 0 ? (
           <p className={styles.emptyHint}>No messages yet — say hello.</p>
         ) : (
           messages.map((m) => (
-            <div key={m.id} className={m.senderId === currentUserId ? styles.bubbleOwn : styles.bubbleOther}>
+            <div key={m._id} className={m.senderId === viewer?._id ? styles.bubbleOwn : styles.bubbleOther}>
               <p className={styles.bubbleRole}>{m.senderRole === "staff" ? "City staff" : "Resident"}</p>
               <p className={styles.bubbleBody}>{m.body}</p>
-              <p className={styles.bubbleTime}>{new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+              <p className={styles.bubbleTime}>
+                {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </p>
             </div>
           ))
         )}

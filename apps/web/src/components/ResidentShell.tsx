@@ -1,11 +1,15 @@
 "use client";
 
+import { useClerk } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { CivicBotWidget } from "@/components/chatbot";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useDashboardTheme } from "@/lib/dashboard-theme";
+
+import { api } from "@convex/_generated/api";
 
 import styles from "./ResidentShell.module.css";
 
@@ -14,21 +18,16 @@ interface ResidentUser {
   email: string;
 }
 
-interface ResidentCounts {
-  reports: number;
-  notifications: number;
-}
-
-function buildNavGroups(counts?: ResidentCounts) {
+function buildNavGroups(counts: { reports: number; notifications: number }) {
   return [
     {
       label: "My activity",
       items: [
         { href: "/app", label: "Overview" },
         { href: "/app/assistant", label: "🤖 AI Assistant" },
-        { href: "/app/reports", label: "My reports", count: counts?.reports },
+        { href: "/app/reports", label: "My reports", count: counts.reports },
         { href: "/app/community", label: "Community" },
-        { href: "/app/notifications", label: "Notifications", count: counts?.notifications },
+        { href: "/app/notifications", label: "Notifications", count: counts.notifications },
       ],
     },
     {
@@ -44,18 +43,17 @@ function initials(name: string): string {
   return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
-export function ResidentShell({
-  children,
-  user,
-  counts,
-}: {
-  children: ReactNode;
-  user: ResidentUser;
-  counts?: ResidentCounts;
-}) {
+export function ResidentShell({ children, user }: { children: ReactNode; user: ResidentUser }) {
   const pathname = usePathname();
-  const navGroups = buildNavGroups(counts);
+  const router = useRouter();
+  const { signOut } = useClerk();
   const { theme, toggleTheme } = useDashboardTheme();
+
+  // Convex subscriptions — these update live with no manual refresh wiring
+  // when a new report/notification lands, unlike the old one-shot SSR fetch.
+  const myIssues = useQuery(api.issues.list, { onlyMine: true });
+  const unreadCount = useQuery(api.notifications.unreadCount, {});
+  const navGroups = buildNavGroups({ reports: myIssues?.length ?? 0, notifications: unreadCount ?? 0 });
 
   return (
     <div className={styles.shell} data-theme={theme}>
@@ -110,6 +108,14 @@ export function ResidentShell({
               <div className={styles.userRole}>Resident</div>
             </div>
           </div>
+          <button
+            type="button"
+            className={styles.backLink}
+            style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}
+            onClick={() => signOut(() => router.push("/"))}
+          >
+            Sign out
+          </button>
           <Link href="/" className={styles.backLink}>
             ← Back to public site
           </Link>

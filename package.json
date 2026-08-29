@@ -3,5 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "CivicFix - AI-assisted civic issue reporting and resolution platform",
-  "workspaces": ["apps/web", "packages/*"]
+  "workspaces": ["apps/web", "packages/*"],
+  "scripts": {
+    "convex:dev": "convex dev",
+    "convex:deploy": "convex deploy"
+  },
+  "dependencies": {
+    "convex": "^1.45.0",
+    "@clerk/backend": "^1.21.0"
+  }
 }

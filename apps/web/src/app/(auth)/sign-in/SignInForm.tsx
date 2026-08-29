@@ -1,12 +1,14 @@
 "use client";
 
+import { useSignIn } from "@clerk/nextjs";
+import { useConvex } from "convex/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@civicfix/ui-web";
 
-import { authErrorMessage, isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { api } from "@convex/_generated/api";
 
 import styles from "../auth.module.css";
 
@@ -16,10 +18,18 @@ function safeNextPath(value: string | null): string | null {
   return value;
 }
 
+function authErrorMessage(err: unknown): string {
+  const clerkErr = err as { errors?: { message?: string }[] };
+  return clerkErr?.errors?.[0]?.message ?? "Something went wrong. Please try again.";
+}
+
 export function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const convex = useConvex();
+
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -28,6 +38,7 @@ export function SignInForm() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (!isLoaded) return;
 
     const trimmedIdentifier = identifier.trim();
     if (trimmedIdentifier.length < 3) return setError("Enter your email or employee ID.");
@@ -36,61 +47,38 @@ export function SignInForm() {
     setError(null);
     setSubmitting(true);
 
-    if (!supabase) {
-      // Preview mode — no credentials configured. Residents are the default.
-      router.push(next ?? "/app");
-      return;
-    }
-
     // A staff member may log in with their employee ID instead of their
-    // email — resolve it first (Supabase Auth itself only signs in by
-    // email). A plain email skips the lookup entirely.
-    let email = trimmedIdentifier;
+    // email — Clerk itself only signs in by email/username, so this
+    // resolves an ID to the account's email first via a pre-auth Convex
+    // query. A plain email skips the lookup entirely.
+    let emailOrUsername = trimmedIdentifier;
     if (!trimmedIdentifier.includes("@")) {
-      const { data: resolved } = await supabase.rpc("resolve_login_email", {
-        p_identifier: trimmedIdentifier,
-      });
+      const resolved = await convex.query(api.users.resolveLoginEmail, { identifier: trimmedIdentifier });
       if (!resolved) {
         setError("Incorrect email/employee ID or password.");
         setSubmitting(false);
         return;
       }
-      email = resolved;
+      emailOrUsername = resolved;
     }
 
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const result = await signIn.create({ identifier: emailOrUsername, password });
+      if (result.status !== "complete") {
+        setError("Additional verification is required for this account.");
+        setSubmitting(false);
+        return;
+      }
+      await setActive({ session: result.createdSessionId });
 
-    if (signInError) {
-      setError(authErrorMessage(signInError));
+      // A full navigation (rather than a client-side redirect right after
+      // setActive) guarantees the server sees the refreshed Clerk session
+      // cookie before deciding where staff vs. residents land.
+      window.location.assign(next ?? "/post-sign-in");
+    } catch (err) {
+      setError(authErrorMessage(err));
       setSubmitting(false);
-      return;
     }
-
-    // Role decides the portal. Roles live in `user_roles` — never in user_metadata,
-    // which the user can edit — so this read is the authoritative one.
-    let destination = "/app";
-    const userId = data.user?.id;
-
-    if (userId) {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-
-      const isStaff = (roles ?? []).some((r: { role: string }) =>
-        ["field_worker", "department_manager", "administrator", "auditor"].includes(r.role),
-      );
-      if (isStaff) destination = "/admin";
-    }
-
-    // Middleware re-checks role on every request regardless, so honoring an
-    // explicit `next` here (e.g. from /staff/request-access) is safe — worst
-    // case a mismatched destination just gets redirected again server-side.
-    router.push(next ?? destination);
-    router.refresh();
   };
 
   return (
@@ -152,7 +140,7 @@ export function SignInForm() {
             </p>
           ) : null}
 
-          <Button type="submit" block disabled={submitting}>
+          <Button type="submit" block disabled={submitting || !isLoaded}>
             {submitting ? "Signing in…" : "Sign in"}
           </Button>
 
@@ -160,18 +148,14 @@ export function SignInForm() {
             Don&apos;t have an account? <Link href="/sign-up">Sign up</Link>
           </p>
           <p className={styles.footNote}>
+            Forgot your password? <Link href="/forgot-password">Reset it</Link>
+          </p>
+          <p className={styles.footNote}>
             City employee? <Link href="/staff/request-access">Request staff access</Link>
           </p>
           <p className={styles.footNote}>
             Administrator? <Link href="/admin-login">Sign in here</Link>
           </p>
-
-          {!isSupabaseConfigured ? (
-            <p className={styles.demoHint}>
-              Preview mode — no Supabase credentials configured, so any valid-looking email opens
-              the resident portal.
-            </p>
-          ) : null}
         </form>
       </div>
     </div>

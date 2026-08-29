@@ -1,12 +1,11 @@
 "use client";
 
+import { useSignIn } from "@clerk/nextjs";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@civicfix/ui-web";
-
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 import styles from "./admin-login.module.css";
 
@@ -16,57 +15,44 @@ function safeNextPath(value: string | null): string | null {
 }
 
 export function AdminLoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
-  const [email, setEmail] = useState("");
+  const { isLoaded, signIn, setActive } = useSignIn();
+
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (!isLoaded) return;
 
-    if (!email.includes("@")) return setError("Enter a valid email address.");
+    const trimmed = username.trim();
+    if (trimmed.length < 3) return setError("Enter your administrator username.");
     if (password.length < 8) return setError("Enter your password.");
 
     setError(null);
     setSubmitting(true);
 
-    if (!supabase) {
-      setError("Admin sign-in isn't available in preview mode — Supabase isn't configured.");
+    try {
+      const result = await signIn.create({ identifier: trimmed, password });
+      if (result.status !== "complete") {
+        setError("Incorrect username or password.");
+        setSubmitting(false);
+        return;
+      }
+      await setActive({ session: result.createdSessionId });
+
+      // Full navigation so the server sees the refreshed session before the
+      // role check — /admin itself (via middleware) rejects anyone who
+      // signs in here without the administrator role, signing them out of
+      // this attempt rather than letting them into the console.
+      window.location.assign(next ?? "/admin");
+    } catch {
+      setError("Incorrect username or password.");
       setSubmitting(false);
-      return;
     }
-
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-
-    if (signInError) {
-      setError("Incorrect email or password.");
-      setSubmitting(false);
-      return;
-    }
-
-    const userId = data.user?.id;
-    const { data: roles } = userId
-      ? await supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "administrator")
-      : { data: null };
-
-    if (!roles || roles.length === 0) {
-      // A real Auth account, but not an administrator — never let it into
-      // the admin portal even briefly. This UID/password pair authenticated
-      // successfully; only the role check below decides admin access.
-      await supabase.auth.signOut();
-      setError("This account does not have administrator access.");
-      setSubmitting(false);
-      return;
-    }
-
-    router.push(next ?? "/admin");
-    router.refresh();
   };
 
   return (
@@ -85,19 +71,18 @@ export function AdminLoginForm() {
       </div>
 
       <div className={styles.field}>
-        <label className={styles.label} htmlFor="email">
-          Email
+        <label className={styles.label} htmlFor="username">
+          Username
         </label>
         <input
-          id="email"
-          type="email"
+          id="username"
           className={styles.input}
-          placeholder="admin@civicfix.demo"
+          placeholder="e.g. civicfix_admin_demo"
           autoCapitalize="none"
           autoCorrect="off"
           autoComplete="username"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
         />
       </div>
 
@@ -122,7 +107,7 @@ export function AdminLoginForm() {
         </p>
       ) : null}
 
-      <Button type="submit" block disabled={submitting}>
+      <Button type="submit" block disabled={submitting || !isLoaded}>
         {submitting ? "Signing in…" : "Sign in"}
       </Button>
 
@@ -130,17 +115,13 @@ export function AdminLoginForm() {
         <Link href="/">← Back to CivicFix</Link>
       </p>
 
-      {!isSupabaseConfigured ? (
-        <p className={styles.demoHint}>No Supabase credentials configured — admin sign-in is disabled.</p>
-      ) : (
-        <p className={styles.demoHint}>
-          Demo account (provision it first with <code>node scripts/seed-admin.mjs</code>):
-          <br />
-          Email: <code>admin@civicfix.demo</code> · Password: <code>CivicFixDemo!2026</code>
-          <br />
-          Development/hackathon demo only — never deploy these credentials to production.
-        </p>
-      )}
+      <p className={styles.demoHint}>
+        Demo account (provision it first with <code>node scripts/seed-clerk-admin.mjs</code>):
+        <br />
+        Username: <code>civicfix_admin_demo</code> · Password: <code>CivicFixDemo!2026</code>
+        <br />
+        Development/hackathon demo only — never deploy these credentials to production.
+      </p>
     </form>
   );
 }

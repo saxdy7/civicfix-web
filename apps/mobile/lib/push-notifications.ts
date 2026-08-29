@@ -2,11 +2,14 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
-import { supabase } from "./supabase";
+import { convexClient } from "./convex-client";
+
+import { api } from "../../../convex/_generated/api";
 
 /**
- * Registers this device for push notifications and stores the token in the
- * shared `device_tokens` table.
+ * Registers this device for push notifications and stores the token via
+ * `notifications.registerDeviceToken` (Convex derives the owning user from
+ * the caller's Clerk identity — no userId to pass).
  *
  * IMPORTANT — this is real and testable today, but it is not full FCM/APNs
  * wiring: it requests the OS notification permission and captures an
@@ -19,7 +22,7 @@ import { supabase } from "./supabase";
  * sends a push either way; there is no backend job wired up to deliver one.
  */
 export async function registerForPushNotifications(
-  userId: string,
+  _userId: string,
 ): Promise<{ granted: boolean; token: string | null; error: string | null }> {
   if (!Device.isDevice) {
     return { granted: false, token: null, error: "Push notifications require a physical device." };
@@ -38,16 +41,8 @@ export async function registerForPushNotifications(
 
   try {
     const { data } = await Notifications.getExpoPushTokenAsync();
-    if (supabase) {
-      await supabase.from("device_tokens").upsert(
-        {
-          user_id: userId,
-          fcm_token: data,
-          platform: Platform.OS,
-          last_seen_at: new Date().toISOString(),
-        },
-        { onConflict: "fcm_token" },
-      );
+    if (convexClient) {
+      await convexClient.mutation(api.notifications.registerDeviceToken, { fcmToken: data, platform: Platform.OS });
     }
     return { granted: true, token: data, error: null };
   } catch (err) {

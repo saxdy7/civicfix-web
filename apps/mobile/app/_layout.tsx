@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type PropsWithChildren } from "react";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -11,9 +11,40 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
+import { ClerkProvider, useAuth as useClerkAuth } from "@clerk/clerk-expo";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
 
 import { AuthProvider } from "../lib/auth-context";
+import { clerkTokenCache } from "../lib/clerk-token-cache";
+import { convexClient, isConvexConfigured } from "../lib/convex-client";
 import { color, fontFamily } from "../lib/theme";
+
+const clerkPublishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+/**
+ * Clerk owns identity; when it's configured, Convex subscribes to it via
+ * ConvexProviderWithClerk so every query/mutation automatically carries the
+ * signed-in user's Clerk JWT (same pattern as apps/web's
+ * ConvexClerkProvider.tsx). Requires a JWT template named "convex" in the
+ * Clerk dashboard — already set up for the web app's use of the same Clerk
+ * instance. Without Clerk configured at all, children render with no auth
+ * provider chain beyond AuthProvider's own demo fallback.
+ */
+function BackendProviders({ children }: PropsWithChildren) {
+  if (!clerkPublishableKey) return <AuthProvider>{children}</AuthProvider>;
+
+  return (
+    <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={clerkTokenCache}>
+      {isConvexConfigured && convexClient ? (
+        <ConvexProviderWithClerk client={convexClient} useAuth={useClerkAuth}>
+          <AuthProvider>{children}</AuthProvider>
+        </ConvexProviderWithClerk>
+      ) : (
+        <AuthProvider>{children}</AuthProvider>
+      )}
+    </ClerkProvider>
+  );
+}
 
 // Keep the native splash up until Inter is loaded — the custom animated
 // splash screen (app/index.tsx) takes over from there while the session is
@@ -44,7 +75,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: color.background }} onLayout={onLayoutRootView}>
       <SafeAreaProvider>
-        <AuthProvider>
+        <BackendProviders>
           <StatusBar style="light" />
           <Stack
             screenOptions={{
@@ -70,7 +101,7 @@ export default function RootLayout() {
             <Stack.Screen name="assignments/[id]/navigate" options={{ title: "Navigate" }} />
             <Stack.Screen name="sync-queue" options={{ title: "Offline sync queue" }} />
           </Stack>
-        </AuthProvider>
+        </BackendProviders>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

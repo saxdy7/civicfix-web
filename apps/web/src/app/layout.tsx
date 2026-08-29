@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Instrument_Serif, Inter } from "next/font/google";
 
+import { ConvexClerkProvider } from "@/components/ConvexClerkProvider";
 import { SmoothScroll } from "@/components/SmoothScroll";
 
 import "./globals.css";
@@ -45,8 +46,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />
       </head>
       <body>
-        <SmoothScroll />
-        {children}
+        <ConvexClerkProvider>
+          <SmoothScroll />
+          {children}
+        </ConvexClerkProvider>
       </body>
     </html>
   );

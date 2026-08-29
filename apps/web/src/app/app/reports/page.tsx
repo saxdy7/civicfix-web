@@ -1,33 +1,35 @@
+"use client";
+
 import Link from "next/link";
+import { useQuery } from "convex/react";
 
 import { Card } from "@civicfix/ui-web";
 
 import { StatusPill } from "@/components/StatusPill";
-import { mapIssueRow, type RawIssueRow } from "@/lib/issue-mappers";
 import { CATEGORY_LABEL, STATUS_LABEL } from "@/lib/status";
-import { createServerSupabase, getSessionProfile } from "@/lib/supabase-server";
-import type { Issue } from "@/lib/types";
+
+import { api } from "@convex/_generated/api";
 
 import styles from "../resident.module.css";
 
-export default async function MyReportsPage() {
-  const session = await getSessionProfile();
-  const supabase = await createServerSupabase();
+export default function MyReportsPage() {
+  const mine = useQuery(api.issues.list, { onlyMine: true });
+  const sorted = [...(mine ?? [])].sort((a, b) => b.updatedAt - a.updatedAt);
 
-  let mine: Issue[] = [];
-
-  if (supabase && session) {
-    const { data } = await supabase
-      .from("issues")
-      .select("*, departments(name)")
-      .eq("reporter_id", session.userId)
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    mine = ((data as RawIssueRow[] | null) ?? []).map((row) => mapIssueRow(row));
+  if (mine === undefined) {
+    return (
+      <div>
+        <div className={styles.pageHeader}>
+          <h1 className={styles.title}>My reports</h1>
+        </div>
+        <Card>
+          <p className={styles.emptyState}>Loading…</p>
+        </Card>
+      </div>
+    );
   }
 
-  if (mine.length === 0) {
+  if (sorted.length === 0) {
     return (
       <div>
         <div className={styles.pageHeader}>
@@ -53,8 +55,8 @@ export default async function MyReportsPage() {
       </div>
 
       <div className={styles.reportList}>
-        {mine.map((issue) => (
-          <Link key={issue.id} href={`/app/reports/${issue.id}`} style={{ textDecoration: "none" }}>
+        {sorted.map((issue) => (
+          <Link key={issue._id} href={`/app/reports/${issue._id}`} style={{ textDecoration: "none" }}>
             <Card className={styles.reportRow}>
               <div className={styles.reportMain}>
                 <h3>
@@ -63,7 +65,7 @@ export default async function MyReportsPage() {
                 </h3>
                 <p>{issue.description}</p>
                 <p className={styles.reportMeta}>
-                  {issue.neighborhood} · {STATUS_LABEL[issue.status]} · Updated{" "}
+                  {issue.neighborhood ?? "Unspecified"} · {STATUS_LABEL[issue.status]} · Updated{" "}
                   {new Date(issue.updatedAt).toLocaleDateString()}
                 </p>
               </div>

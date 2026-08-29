@@ -42,7 +42,7 @@ export function ApiStatus() {
     status === "ok"
       ? "FastAPI reachable"
       : status === "error"
-        ? "FastAPI unreachable — site reads/writes Supabase directly for now"
+        ? "FastAPI unreachable — site reads/writes Convex directly for now"
         : "Checking…";
 
   return (

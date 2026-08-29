@@ -1,17 +1,18 @@
+"use client";
+
+import { useQuery } from "convex/react";
+
 import { Card } from "@civicfix/ui-web";
 
-import { fetchCommunityFeed, fetchMyVotes } from "@/lib/community";
-import { getSessionProfile } from "@/lib/supabase-server";
+import { api } from "@convex/_generated/api";
 
 import styles from "../resident.module.css";
 import { VoteCard } from "./VoteCard";
 
-export default async function CommunityPage() {
-  const session = await getSessionProfile();
-  const [feed, myVotes] = await Promise.all([
-    fetchCommunityFeed(),
-    session ? fetchMyVotes(session.userId) : Promise.resolve(new Map()),
-  ]);
+export default function CommunityPage() {
+  const feed = useQuery(api.communityVotes.feed, {});
+  const myVotes = useQuery(api.communityVotes.myVotes, {});
+  const myVoteByIssue = new Map((myVotes ?? []).map((v) => [v.issueId, v]));
 
   return (
     <div>
@@ -23,7 +24,11 @@ export default async function CommunityPage() {
         </p>
       </div>
 
-      {feed.length === 0 ? (
+      {feed === undefined ? (
+        <Card>
+          <p className={styles.emptyState}>Loading…</p>
+        </Card>
+      ) : feed.length === 0 ? (
         <Card>
           <p className={styles.emptyState}>
             Nothing is waiting on community verification right now. Reports move here once field
@@ -33,7 +38,14 @@ export default async function CommunityPage() {
       ) : (
         <div className={styles.reportList}>
           {feed.map((item) => (
-            <VoteCard key={item.id} item={item} myVote={session ? (myVotes.get(item.id) ?? null) : null} />
+            <VoteCard
+              key={item.issue._id}
+              issue={item.issue}
+              evidence={item.evidence}
+              completedCount={item.completedCount}
+              needsWorkCount={item.needsWorkCount}
+              myVote={myVoteByIssue.get(item.issue._id) ?? null}
+            />
           ))}
         </div>
       )}

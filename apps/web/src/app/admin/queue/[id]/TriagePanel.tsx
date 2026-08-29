@@ -1,97 +1,57 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "convex/react";
 
 import { Badge, Button, Card } from "@civicfix/ui-web";
 
 import { ALLOWED_NEXT_STATUS } from "@/lib/admin-mappers";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { CATEGORY_LABEL, STATUS_SHORT_LABEL } from "@/lib/status";
-import type { Issue, IssueCategory, IssueStatus } from "@/lib/types";
+
+import { api } from "@convex/_generated/api";
+import type { Doc, Id } from "@convex/_generated/dataModel";
 
 import styles from "../../admin.module.css";
 
-interface DepartmentOption {
-  id: string;
-  name: string;
-}
+export function TriagePanel({ issue }: { issue: Doc<"issues"> }) {
+  const departments = useQuery(api.departments.list, {});
+  const workers = useQuery(api.users.listFieldWorkers, {});
+  const assignment = useQuery(api.assignments.getByIssue, { issueId: issue._id });
+  const similarIssues = useQuery(
+    api.issues.findNearbySimilar,
+    issue.duplicateOfIssueId
+      ? "skip"
+      : { latitude: issue.latitude, longitude: issue.longitude, category: issue.category, radiusM: 200, excludeIssueId: issue._id },
+  );
+  const duplicateTarget = useQuery(
+    api.issues.getById,
+    issue.duplicateOfIssueId ? { issueId: issue.duplicateOfIssueId } : "skip",
+  );
+  const aiAssessment = useQuery(api.aiAssessments.latestForIssue, { issueId: issue._id });
 
-interface DuplicateIssue {
-  id: string;
-  trackingId: string;
-  description: string;
-}
+  const routeToDepartment = useMutation(api.issues.routeToDepartment);
+  const markDuplicate = useMutation(api.issues.markDuplicate);
+  const assignWorker = useMutation(api.assignments.assignWorker);
 
-interface AiAssessment {
-  category: IssueCategory;
-  confidence: number;
-}
-
-interface WorkerOption {
-  id: string;
-  name: string;
-}
-
-interface SimilarIssue {
-  id: string;
-  tracking_id: string;
-  description: string;
-  status: IssueStatus;
-  distance_m: number;
-}
-
-export function TriagePanel({
-  issue,
-  duplicateIssue,
-  aiAssessment,
-  departments,
-  workers,
-  assignedWorkerId,
-}: {
-  issue: Issue;
-  duplicateIssue: DuplicateIssue | null;
-  aiAssessment: AiAssessment | null;
-  departments: DepartmentOption[];
-  workers: WorkerOption[];
-  assignedWorkerId: string | null;
-}) {
-  const router = useRouter();
   const canMarkDuplicate = ALLOWED_NEXT_STATUS[issue.status]?.includes("duplicate") ?? false;
 
   const [dupTrackingId, setDupTrackingId] = useState("");
   const [dupBusy, setDupBusy] = useState(false);
   const [dupError, setDupError] = useState<string | null>(null);
-  const [similarIssues, setSimilarIssues] = useState<SimilarIssue[]>([]);
 
-  useEffect(() => {
-    if (!supabase || duplicateIssue) return;
-    supabase
-      .rpc("find_nearby_similar_issues", {
-        p_latitude: issue.latitude,
-        p_longitude: issue.longitude,
-        p_category: issue.category,
-        p_radius_m: 200,
-        p_exclude_issue_id: issue.id,
-      })
-      .then(({ data }) => setSimilarIssues((data as SimilarIssue[] | null) ?? []));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [issue.id]);
-
-  const [departmentId, setDepartmentId] = useState<string>(
-    departments.find((d) => d.name === issue.department)?.id ?? "",
-  );
+  const [departmentId, setDepartmentId] = useState<Id<"departments"> | "">(issue.departmentId ?? "");
+  useEffect(() => setDepartmentId(issue.departmentId ?? ""), [issue.departmentId]);
   const [assignBusy, setAssignBusy] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [assignSaved, setAssignSaved] = useState<string | null>(null);
 
-  const [workerId, setWorkerId] = useState<string>(assignedWorkerId ?? "");
+  const [workerId, setWorkerId] = useState<Id<"users"> | "">(assignment?.workerId ?? "");
+  useEffect(() => setWorkerId(assignment?.workerId ?? ""), [assignment?.workerId]);
   const [workerBusy, setWorkerBusy] = useState(false);
   const [workerError, setWorkerError] = useState<string | null>(null);
   const [workerSaved, setWorkerSaved] = useState<string | null>(null);
 
   async function handleAssignWorker() {
-    if (!supabase) return;
     if (!workerId) {
       setWorkerError("Choose a field worker first.");
       return;
@@ -100,13 +60,8 @@ export function TriagePanel({
     setWorkerError(null);
     setWorkerSaved(null);
     try {
-      const { error } = await supabase.rpc("assign_worker", {
-        p_issue_id: issue.id,
-        p_worker_id: workerId,
-      });
-      if (error) throw error;
+      await assignWorker({ issueId: issue._id, workerId });
       setWorkerSaved("Assigned.");
-      router.refresh();
     } catch (err) {
       setWorkerError(err instanceof Error ? err.message : "Could not assign this worker.");
     } finally {
@@ -115,7 +70,6 @@ export function TriagePanel({
   }
 
   async function handleMarkDuplicate() {
-    if (!supabase) return;
     const trackingId = dupTrackingId.trim().toUpperCase();
     if (!trackingId) {
       setDupError("Enter the tracking ID this report duplicates.");
@@ -124,12 +78,7 @@ export function TriagePanel({
     setDupBusy(true);
     setDupError(null);
     try {
-      const { error: rpcError } = await supabase.rpc("mark_issue_duplicate", {
-        p_issue_id: issue.id,
-        p_duplicate_of_tracking_id: trackingId,
-      });
-      if (rpcError) throw rpcError;
-      router.refresh();
+      await markDuplicate({ issueId: issue._id, duplicateOfTrackingId: trackingId });
     } catch (err) {
       setDupError(err instanceof Error ? err.message : "Could not mark this report as a duplicate.");
     } finally {
@@ -138,7 +87,6 @@ export function TriagePanel({
   }
 
   async function handleRouteToDepartment() {
-    if (!supabase) return;
     if (!departmentId) {
       setAssignError("Choose a department first.");
       return;
@@ -147,14 +95,8 @@ export function TriagePanel({
     setAssignError(null);
     setAssignSaved(null);
     try {
-      const { error } = await supabase.rpc("route_issue_department", {
-        p_issue_id: issue.id,
-        p_department_id: departmentId,
-      });
-      if (error) throw error;
-
+      await routeToDepartment({ issueId: issue._id, departmentId });
       setAssignSaved("Routed to department.");
-      router.refresh();
     } catch (err) {
       setAssignError(err instanceof Error ? err.message : "Could not route this report.");
     } finally {
@@ -168,8 +110,8 @@ export function TriagePanel({
         <Card style={{ marginBottom: "var(--space-4)" }}>
           <h2 className={styles.sectionTitle}>AI-assisted suggestion</h2>
           <p style={{ margin: 0 }}>
-            Suggested category: <strong>{CATEGORY_LABEL[aiAssessment.category]}</strong>{" "}
-            <Badge tone="info">{Math.round(aiAssessment.confidence * 100)}% confidence</Badge>
+            Suggested category: <strong>{CATEGORY_LABEL[(aiAssessment.output as { category: string }).category as keyof typeof CATEGORY_LABEL]}</strong>{" "}
+            <Badge tone="info">{Math.round((aiAssessment.confidence ?? 0) * 100)}% confidence</Badge>
           </p>
           <p style={{ margin: "var(--space-1) 0 0", fontSize: "var(--font-size-xs)", color: "var(--color-muted-foreground)" }}>
             AI-assisted — always reviewed by staff before it affects routing.
@@ -186,20 +128,20 @@ export function TriagePanel({
 
       <Card style={{ marginBottom: "var(--space-4)" }}>
         <h2 className={styles.sectionTitle}>Duplicate</h2>
-        {duplicateIssue ? (
+        {duplicateTarget ? (
           <p style={{ margin: 0 }}>
-            Linked as a duplicate of <strong>{duplicateIssue.trackingId}</strong> — {duplicateIssue.description}
+            Linked as a duplicate of <strong>{duplicateTarget.trackingId}</strong> — {duplicateTarget.description}
           </p>
         ) : canMarkDuplicate ? (
           <>
-            {similarIssues.length > 0 ? (
+            {(similarIssues ?? []).length > 0 ? (
               <div style={{ marginBottom: "var(--space-3)", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                 <p style={{ margin: 0, fontSize: "var(--font-size-sm)", color: "var(--color-muted-foreground)" }}>
                   Nearby reports of the same category — possible duplicates:
                 </p>
-                {similarIssues.map((s) => (
+                {(similarIssues ?? []).map((s) => (
                   <div
-                    key={s.id}
+                    key={s._id}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -211,14 +153,10 @@ export function TriagePanel({
                     }}
                   >
                     <span style={{ fontSize: "var(--font-size-sm)" }}>
-                      <strong>{s.tracking_id}</strong> · {STATUS_SHORT_LABEL[s.status]} · ~{Math.round(s.distance_m)}m — {s.description.slice(0, 60)}
+                      <strong>{s.trackingId}</strong> · {STATUS_SHORT_LABEL[s.status]} — {s.description.slice(0, 60)}
                       {s.description.length > 60 ? "…" : ""}
                     </span>
-                    <Button
-                      variant="secondary"
-                      onClick={() => setDupTrackingId(s.tracking_id)}
-                      disabled={dupBusy}
-                    >
+                    <Button variant="secondary" onClick={() => setDupTrackingId(s.trackingId)} disabled={dupBusy}>
                       Use this
                     </Button>
                   </div>
@@ -245,7 +183,7 @@ export function TriagePanel({
                   padding: "var(--space-3) var(--space-4)",
                 }}
               />
-              <Button variant="secondary" onClick={handleMarkDuplicate} disabled={dupBusy || !isSupabaseConfigured}>
+              <Button variant="secondary" onClick={handleMarkDuplicate} disabled={dupBusy}>
                 {dupBusy ? "Linking…" : "Mark as duplicate"}
               </Button>
             </div>
@@ -267,7 +205,7 @@ export function TriagePanel({
         <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}>
           <select
             value={departmentId}
-            onChange={(e) => setDepartmentId(e.target.value)}
+            onChange={(e) => setDepartmentId(e.target.value as Id<"departments">)}
             style={{
               border: "1px solid var(--color-border)",
               borderRadius: "var(--radius-control)",
@@ -279,13 +217,13 @@ export function TriagePanel({
             }}
           >
             <option value="">Unassigned</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
+            {(departments ?? []).map((d) => (
+              <option key={d._id} value={d._id}>
                 {d.name}
               </option>
             ))}
           </select>
-          <Button onClick={handleRouteToDepartment} disabled={assignBusy || !isSupabaseConfigured}>
+          <Button onClick={handleRouteToDepartment} disabled={assignBusy}>
             {assignBusy ? "Routing…" : "Route to department"}
           </Button>
         </div>
@@ -303,7 +241,7 @@ export function TriagePanel({
 
       <Card>
         <h2 className={styles.sectionTitle}>Assign a field worker</h2>
-        {workers.length === 0 ? (
+        {(workers ?? []).length === 0 ? (
           <p style={{ margin: 0, fontSize: "var(--font-size-sm)", color: "var(--color-muted-foreground)" }}>
             No field workers exist yet — approve a field-worker access request first.
           </p>
@@ -312,7 +250,7 @@ export function TriagePanel({
             <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", alignItems: "center" }}>
               <select
                 value={workerId}
-                onChange={(e) => setWorkerId(e.target.value)}
+                onChange={(e) => setWorkerId(e.target.value as Id<"users">)}
                 style={{
                   border: "1px solid var(--color-border)",
                   borderRadius: "var(--radius-control)",
@@ -324,13 +262,13 @@ export function TriagePanel({
                 }}
               >
                 <option value="">Choose a worker</option>
-                {workers.map((w) => (
+                {(workers ?? []).map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.name}
                   </option>
                 ))}
               </select>
-              <Button onClick={handleAssignWorker} disabled={workerBusy || !isSupabaseConfigured}>
+              <Button onClick={handleAssignWorker} disabled={workerBusy}>
                 {workerBusy ? "Assigning…" : "Assign"}
               </Button>
             </div>

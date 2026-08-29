@@ -1,31 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "convex/react";
 
 import { Badge, Button, Card } from "@civicfix/ui-web";
 
 import { ALLOWED_NEXT_STATUS } from "@/lib/admin-mappers";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { STATUS_SHORT_LABEL } from "@/lib/status";
-import type { Issue, IssueSeverity, IssueStatus } from "@/lib/types";
+import type { IssueSeverity, IssueStatus } from "@/lib/types";
+
+import { api } from "@convex/_generated/api";
+import type { Doc } from "@convex/_generated/dataModel";
 
 import styles from "../../admin.module.css";
 
 const SEVERITIES: IssueSeverity[] = ["low", "medium", "high", "critical"];
 
-export function ResolutionPanel({
-  issue,
-  hasVerifiedEvidence,
-  assignmentDueAt,
-  workerName,
-}: {
-  issue: Issue;
-  hasVerifiedEvidence: boolean;
-  assignmentDueAt: string | null;
-  workerName: string | null;
-}) {
-  const router = useRouter();
+export function ResolutionPanel({ issue }: { issue: Doc<"issues"> }) {
+  const assignment = useQuery(api.assignments.getByIssue, { issueId: issue._id });
+  const evidence = useQuery(api.resolutionEvidence.latestForIssue, { issueId: issue._id });
+  const updateStatus = useMutation(api.issues.updateStatus);
+
   const [severity, setSeverity] = useState<IssueSeverity>(issue.severity);
   const [nextStatus, setNextStatus] = useState<IssueStatus | "">("");
   const [note, setNote] = useState("");
@@ -36,9 +31,9 @@ export function ResolutionPanel({
   const allowed = ALLOWED_NEXT_STATUS[issue.status] ?? [];
   const needsEvidence = nextStatus === "resolved";
   const needsReason = nextStatus === "rejected" || nextStatus === "reopened";
+  const hasVerifiedEvidence = Boolean(evidence?.verifiedAt);
 
   async function handleSave() {
-    if (!supabase) return;
     if (!nextStatus && severity === issue.severity) {
       setError("Choose a transition or change the severity before saving.");
       return;
@@ -48,9 +43,7 @@ export function ResolutionPanel({
       return;
     }
     if (needsEvidence && !hasVerifiedEvidence) {
-      setError(
-        "This issue has no verified resolution evidence on file. Evidence must be verified before it can be resolved.",
-      );
+      setError("This issue has no verified resolution evidence on file. Evidence must be verified before it can be resolved.");
       return;
     }
 
@@ -58,13 +51,12 @@ export function ResolutionPanel({
     setError(null);
     setSaved(null);
     try {
-      const { error: rpcError } = await supabase.rpc("update_issue_status", {
-        p_issue_id: issue.id,
-        p_next_status: nextStatus || null,
-        p_severity: severity !== issue.severity ? severity : null,
-        p_note: note.trim() || null,
+      await updateStatus({
+        issueId: issue._id,
+        nextStatus: nextStatus || undefined,
+        severity: severity !== issue.severity ? severity : undefined,
+        note: note.trim() || undefined,
       });
-      if (rpcError) throw rpcError;
 
       const parts = [
         nextStatus ? `Status set to ${STATUS_SHORT_LABEL[nextStatus]}.` : null,
@@ -73,7 +65,6 @@ export function ResolutionPanel({
       setSaved(parts.filter(Boolean).join(" ") || "Saved.");
       setNextStatus("");
       setNote("");
-      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save this decision.");
     } finally {
@@ -92,11 +83,10 @@ export function ResolutionPanel({
           lineHeight: 1.6,
         }}
       >
-        Severity and status changes go through an audited, transition-checked server function —
+        Severity and status changes go through an audited, transition-checked Convex mutation —
         never a direct database write.
       </p>
 
-      {/* Severity */}
       <div style={{ marginBottom: "var(--space-4)" }}>
         <span className={styles.sectionTitle} style={{ fontSize: "var(--font-size-sm)" }}>
           Confirmed severity
@@ -116,7 +106,6 @@ export function ResolutionPanel({
         </div>
       </div>
 
-      {/* Transition */}
       <div style={{ marginBottom: "var(--space-4)" }}>
         <span className={styles.sectionTitle} style={{ fontSize: "var(--font-size-sm)" }}>
           Move to
@@ -148,36 +137,23 @@ export function ResolutionPanel({
         ) : null}
       </div>
 
-      {/* Assignment due date (read-only — see TriagePanel for why worker assignment isn't wired) */}
       <div style={{ marginBottom: "var(--space-4)" }}>
         <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600 }}>Field assignment</span>
         <p style={{ margin: "var(--space-1) 0 0", fontSize: "var(--font-size-sm)", color: "var(--color-muted-foreground)" }}>
-          {workerName
-            ? `${workerName}${assignmentDueAt ? ` · due ${new Date(assignmentDueAt).toLocaleDateString()}` : ""}`
+          {assignment?.workerName
+            ? `${assignment.workerName}${assignment.dueAt ? ` · due ${new Date(assignment.dueAt).toLocaleDateString()}` : ""}`
             : "No assignment on file yet."}
         </p>
       </div>
 
-      {/* Note */}
-      <label
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--space-2)",
-          marginBottom: "var(--space-4)",
-        }}
-      >
+      <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
         <span style={{ fontSize: "var(--font-size-sm)", fontWeight: 600 }}>
           Staff note {needsReason ? "(required)" : "(optional — recorded on the status change)"}
         </span>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder={
-            needsReason
-              ? "Explain why this is being rejected or reopened."
-              : "Anything the next person handling this should know."
-          }
+          placeholder={needsReason ? "Explain why this is being rejected or reopened." : "Anything the next person handling this should know."}
           style={{ ...selectStyle, minHeight: 96, resize: "vertical", lineHeight: 1.6 }}
         />
       </label>
@@ -189,20 +165,13 @@ export function ResolutionPanel({
       ) : null}
 
       {saved ? (
-        <p
-          role="status"
-          style={{
-            color: "var(--color-civic-green)",
-            fontSize: "var(--font-size-sm)",
-            marginBottom: "var(--space-3)",
-          }}
-        >
+        <p role="status" style={{ color: "var(--color-civic-green)", fontSize: "var(--font-size-sm)", marginBottom: "var(--space-3)" }}>
           {saved}
         </p>
       ) : null}
 
       <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
-        <Button onClick={handleSave} disabled={busy || !isSupabaseConfigured}>
+        <Button onClick={handleSave} disabled={busy}>
           {busy ? "Saving…" : "Record decision"}
         </Button>
         <Button variant="secondary" onClick={() => setNextStatus("")} disabled={busy}>

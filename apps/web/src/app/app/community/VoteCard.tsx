@@ -1,83 +1,89 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 
 import { Badge, Button, Card } from "@civicfix/ui-web";
 
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { STATUS_SHORT_LABEL } from "@/lib/status";
-import type { CommunityFeedItem, MyVote } from "@/lib/community";
+import { CATEGORY_LABEL, STATUS_SHORT_LABEL } from "@/lib/status";
+
+import { api } from "@convex/_generated/api";
+import type { Doc, Id } from "@convex/_generated/dataModel";
 
 import styles from "./community.module.css";
 
-export function VoteCard({ item, myVote }: { item: CommunityFeedItem; myVote: MyVote | null }) {
-  const router = useRouter();
+function EvidencePhoto({ mediaId, label }: { mediaId: Id<"issueMedia"> | undefined; label: string }) {
+  const url = useQuery(api.issueMedia.getUrl, mediaId ? { mediaId } : "skip");
+
+  if (!mediaId || url === null) {
+    return <div className={styles.photoPlaceholder}>No {label.toLowerCase()} photo</div>;
+  }
+  if (url === undefined) {
+    return <div className={styles.photoPlaceholder}>Loading…</div>;
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt={`${label} the fix`} className={styles.photo} />;
+}
+
+export function VoteCard({
+  issue,
+  evidence,
+  completedCount,
+  needsWorkCount,
+  myVote,
+}: {
+  issue: Doc<"issues">;
+  evidence: Doc<"resolutionEvidence"> | null;
+  completedCount: number;
+  needsWorkCount: number;
+  myVote: { vote: "completed" | "needs_work"; comment?: string } | null;
+}) {
+  const castVote = useMutation(api.communityVotes.cast);
   const [comment, setComment] = useState(myVote?.comment ?? "");
   const [busy, setBusy] = useState<"completed" | "needs_work" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [castVote, setCastVote] = useState<MyVote | null>(myVote);
 
-  const total = item.completedCount + item.needsWorkCount;
-  const completedPct = total > 0 ? Math.round((item.completedCount / total) * 100) : 0;
+  const total = completedCount + needsWorkCount;
+  const completedPct = total > 0 ? Math.round((completedCount / total) * 100) : 0;
 
   const handleVote = async (vote: "completed" | "needs_work") => {
-    if (!supabase || !isSupabaseConfigured) {
-      setError("Voting isn't available in preview mode.");
-      return;
-    }
     setBusy(vote);
     setError(null);
-    const { error: rpcError } = await supabase.rpc("cast_community_vote", {
-      p_issue_id: item.id,
-      p_vote: vote,
-      p_comment: comment.trim() || null,
-    });
-    setBusy(null);
-    if (rpcError) {
-      setError(rpcError.message);
-      return;
+    try {
+      await castVote({ issueId: issue._id, vote, comment: comment.trim() || undefined });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save your vote.");
+    } finally {
+      setBusy(null);
     }
-    setCastVote({ issueId: item.id, vote, comment: comment.trim() || null });
-    router.refresh();
   };
 
   return (
     <Card className={styles.card}>
       <div className={styles.header}>
         <div>
-          <p className={styles.tracking}>{item.trackingId}</p>
+          <p className={styles.tracking}>{issue.trackingId}</p>
           <p className={styles.meta}>
-            {item.categoryLabel} · {item.neighborhood}
+            {CATEGORY_LABEL[issue.category]} · {issue.neighborhood ?? "Unspecified"}
           </p>
         </div>
-        <Badge tone={item.status === "resolved" ? "success" : "info"}>{STATUS_SHORT_LABEL[item.status]}</Badge>
+        <Badge tone={issue.status === "resolved" ? "success" : "info"}>{STATUS_SHORT_LABEL[issue.status]}</Badge>
       </div>
 
       <div className={styles.photoRow}>
         <div className={styles.photoCol}>
           <span className={styles.photoLabel}>Before</span>
-          {item.beforePhotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.beforePhotoUrl} alt="Before the fix" className={styles.photo} />
-          ) : (
-            <div className={styles.photoPlaceholder}>No before photo</div>
-          )}
+          <EvidencePhoto mediaId={evidence?.beforeMediaId} label="Before" />
         </div>
         <div className={styles.photoCol}>
           <span className={styles.photoLabel}>After</span>
-          {item.afterPhotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.afterPhotoUrl} alt="After the fix" className={styles.photo} />
-          ) : (
-            <div className={styles.photoPlaceholder}>No after photo</div>
-          )}
+          <EvidencePhoto mediaId={evidence?.afterMediaId} label="After" />
         </div>
       </div>
 
-      {item.completionNote ? (
+      {evidence?.note ? (
         <p className={styles.completionNote}>
-          <strong>Field note:</strong> {item.completionNote}
+          <strong>Field note:</strong> {evidence.note}
         </p>
       ) : null}
 
@@ -86,20 +92,22 @@ export function VoteCard({ item, myVote }: { item: CommunityFeedItem; myVote: My
           <div className={styles.progressFill} style={{ width: `${completedPct}%` }} />
         </div>
         <span className={styles.progressLabel}>
-          {item.completedCount} completed · {item.needsWorkCount} needs work
+          {completedCount} completed · {needsWorkCount} needs work
         </span>
       </div>
 
-      {item.status === "resolved" ? (
-        <p className={styles.resolvedNote}>Verified {item.verifiedAt ? new Date(item.verifiedAt).toLocaleDateString() : ""}.</p>
-      ) : castVote ? (
+      {issue.status === "resolved" ? (
+        <p className={styles.resolvedNote}>
+          Verified {evidence?.verifiedAt ? new Date(evidence.verifiedAt).toLocaleDateString() : ""}.
+        </p>
+      ) : myVote ? (
         <p className={styles.votedNote}>
-          You voted <strong>{castVote.vote === "completed" ? "Work completed" : "Still needs work"}</strong>. You
+          You voted <strong>{myVote.vote === "completed" ? "Work completed" : "Still needs work"}</strong>. You
           can change your vote below.
         </p>
       ) : null}
 
-      {item.status === "pending_verification" ? (
+      {issue.status === "pending_verification" ? (
         <>
           <textarea
             className={styles.commentBox}

@@ -1,41 +1,23 @@
+"use client";
+
 import Link from "next/link";
+import { useQuery } from "convex/react";
 
 import { Card } from "@civicfix/ui-web";
 
 import { StatusPill } from "@/components/StatusPill";
 import { isOverdue } from "@/lib/admin-mappers";
-import { createServerSupabase } from "@/lib/supabase-server";
 import { CATEGORY_LABEL, SEVERITY_LABEL } from "@/lib/status";
-import type { IssueCategory, IssueSeverity, IssueStatus } from "@/lib/types";
+
+import { api } from "@convex/_generated/api";
 
 import styles from "../admin.module.css";
 
-interface QueueRow {
-  id: string;
-  tracking_id: string;
-  category: IssueCategory;
-  severity: IssueSeverity;
-  status: IssueStatus;
-  created_at: string;
-  departments: { name: string; sla_hours: number } | null;
-}
-
-async function loadQueue(): Promise<QueueRow[] | null> {
-  const supabase = await createServerSupabase();
-  if (!supabase) return null;
-
-  const { data } = await supabase
-    .from("issues")
-    .select("id, tracking_id, category, severity, status, created_at, departments(name, sla_hours)")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(200);
-
-  return (data ?? []) as unknown as QueueRow[];
-}
-
-export default async function IssueQueuePage() {
-  const issues = await loadQueue();
+export default function IssueQueuePage() {
+  const issues = useQuery(api.issues.list, {});
+  const departments = useQuery(api.departments.list, {});
+  const deptById = new Map((departments ?? []).map((d) => [d._id, d]));
+  const sorted = [...(issues ?? [])].sort((a, b) => b.createdAt - a.createdAt);
 
   return (
     <div>
@@ -45,11 +27,9 @@ export default async function IssueQueuePage() {
       </div>
 
       <Card>
-        {issues === null ? (
-          <p className={styles.emptyState}>
-            Supabase is not configured — connect it to see live reports here.
-          </p>
-        ) : issues.length === 0 ? (
+        {issues === undefined ? (
+          <p className={styles.emptyState}>Loading…</p>
+        ) : sorted.length === 0 ? (
           <p className={styles.emptyState}>No reports yet.</p>
         ) : (
           <div className={styles.tableWrap}>
@@ -66,20 +46,21 @@ export default async function IssueQueuePage() {
                 </tr>
               </thead>
               <tbody>
-                {issues.map((issue) => {
-                  const overdue = isOverdue(issue.created_at, issue.departments?.sla_hours ?? 72, issue.status);
+                {sorted.map((issue) => {
+                  const dept = issue.departmentId ? deptById.get(issue.departmentId) : null;
+                  const overdue = isOverdue(issue.createdAt, dept?.slaHours ?? 72, issue.status);
                   return (
-                    <tr key={issue.id} style={overdue ? { background: "var(--color-civic-red-soft)" } : undefined}>
+                    <tr key={issue._id} style={overdue ? { background: "var(--color-civic-red-soft)" } : undefined}>
                       <td>
-                        <Link href={`/admin/queue/${issue.id}`}>{issue.tracking_id}</Link>
+                        <Link href={`/admin/queue/${issue._id}`}>{issue.trackingId}</Link>
                       </td>
                       <td>{CATEGORY_LABEL[issue.category]}</td>
                       <td>{SEVERITY_LABEL[issue.severity]}</td>
-                      <td>{issue.departments?.name ?? "Unassigned"}</td>
+                      <td>{dept?.name ?? "Unassigned"}</td>
                       <td>
                         <StatusPill status={issue.status} />
                       </td>
-                      <td>{new Date(issue.created_at).toLocaleDateString()}</td>
+                      <td>{new Date(issue.createdAt).toLocaleDateString()}</td>
                       <td>
                         {overdue ? (
                           <span style={{ color: "var(--color-civic-red)", fontWeight: 700 }}>⚠ Overdue</span>

@@ -1,72 +1,33 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useQuery } from "convex/react";
 
 import { Badge, Card } from "@civicfix/ui-web";
 
-import { STAFF_ROLES } from "@/lib/admin-mappers";
-import { createServerSupabase, getSessionProfile } from "@/lib/supabase-server";
-import type { StaffUser } from "@/lib/types";
+import { api } from "@convex/_generated/api";
 
 import styles from "../admin.module.css";
 
 const ROLE_LABEL: Record<string, string> = {
-  admin: "Administrator",
+  administrator: "Administrator",
   department_manager: "Department manager",
   field_worker: "Field worker",
   auditor: "Auditor",
 };
 
-interface RoleRow {
-  user_id: string;
-  role: string;
-  department_id: string | null;
-}
+export default function UsersPage() {
+  const router = useRouter();
+  const viewer = useQuery(api.users.viewer, {});
+  const staff = useQuery(api.users.listStaff, {});
+  const notAdmin = viewer !== undefined && !viewer?.roles.includes("administrator");
 
-async function loadStaff(): Promise<StaffUser[] | null> {
-  const supabase = await createServerSupabase();
-  if (!supabase) return null;
+  useEffect(() => {
+    if (notAdmin) router.replace("/admin");
+  }, [notAdmin, router]);
 
-  const { data: roleRows } = await supabase
-    .from("user_roles")
-    .select("user_id, role, department_id")
-    .in("role", [...STAFF_ROLES]);
-
-  const rows = (roleRows ?? []) as RoleRow[];
-  if (rows.length === 0) return [];
-
-  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-  const departmentIds = Array.from(new Set(rows.map((r) => r.department_id).filter((id): id is string => !!id)));
-
-  const [{ data: profiles }, { data: departments }] = await Promise.all([
-    supabase.from("profiles").select("id, full_name, email").in("id", userIds),
-    departmentIds.length > 0
-      ? supabase.from("departments").select("id, name").in("id", departmentIds)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-  ]);
-
-  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
-  const departmentById = new Map((departments ?? []).map((d) => [d.id, d.name]));
-
-  // One row per (user, staff role) — a person holding two staff roles appears twice,
-  // which is accurate rather than collapsing to a single fabricated "primary" role.
-  return rows.map((row) => {
-    const profile = profileById.get(row.user_id);
-    return {
-      id: `${row.user_id}:${row.role}`,
-      name: profile?.full_name || "Unnamed",
-      email: profile?.email || "—",
-      role: (row.role === "administrator" ? "admin" : row.role) as StaffUser["role"],
-      department: row.department_id ? departmentById.get(row.department_id) : undefined,
-      // The schema has no deactivation flag yet — every granted role is active by definition.
-      active: true,
-    };
-  });
-}
-
-export default async function UsersPage() {
-  const session = await getSessionProfile();
-  if (!session?.isAdmin) redirect("/admin");
-
-  const users = await loadStaff();
+  if (notAdmin) return null;
 
   return (
     <div>
@@ -76,11 +37,9 @@ export default async function UsersPage() {
       </div>
 
       <Card>
-        {users === null ? (
-          <p className={styles.emptyState}>
-            Supabase is not configured — connect it to see live staff accounts here.
-          </p>
-        ) : users.length === 0 ? (
+        {staff === undefined ? (
+          <p className={styles.emptyState}>Loading…</p>
+        ) : staff.length === 0 ? (
           <p className={styles.emptyState}>No staff accounts yet.</p>
         ) : (
           <div className={styles.tableWrap}>
@@ -95,14 +54,14 @@ export default async function UsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {staff.map((user) => (
                   <tr key={user.id}>
                     <td>{user.name}</td>
                     <td>{user.email}</td>
                     <td>{ROLE_LABEL[user.role] ?? user.role}</td>
                     <td>{user.department ?? "—"}</td>
                     <td>
-                      <Badge tone={user.active ? "success" : "warning"}>{user.active ? "Active" : "Inactive"}</Badge>
+                      <Badge tone="success">Active</Badge>
                     </td>
                   </tr>
                 ))}

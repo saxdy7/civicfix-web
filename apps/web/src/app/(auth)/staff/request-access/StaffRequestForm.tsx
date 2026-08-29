@@ -1,12 +1,15 @@
 "use client";
 
+import { useClerk, useSignUp } from "@clerk/nextjs";
+import { useMutation } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@civicfix/ui-web";
 
-import { authErrorMessage, isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 
 import styles from "../../auth.module.css";
 
@@ -33,6 +36,11 @@ function loadPending(): PendingRequest | null {
   }
 }
 
+function authErrorMessage(err: unknown): string {
+  const clerkErr = err as { errors?: { message?: string }[] };
+  return clerkErr?.errors?.[0]?.message ?? "Something went wrong. Please try again.";
+}
+
 interface StaffRequestFormProps {
   /** null when nobody is signed in — a request must be tied to an account. */
   session: { userId: string; email: string } | null;
@@ -41,13 +49,16 @@ interface StaffRequestFormProps {
 
 export function StaffRequestForm({ session, departments }: StaffRequestFormProps) {
   const router = useRouter();
+  const { signOut } = useClerk();
+  const { isLoaded, signUp, setActive } = useSignUp();
+  const submitAccessRequest = useMutation(api.staffAccessRequests.submit);
+
   const pending = session ? loadPending() : null;
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
-    if (!supabase) return;
     setSigningOut(true);
-    await supabase.auth.signOut();
+    await signOut();
     router.refresh();
   };
 
@@ -62,44 +73,44 @@ export function StaffRequestForm({ session, departments }: StaffRequestFormProps
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [needsConfirmation, setNeedsConfirmation] = useState(false);
-
-  // A confirmed signup lands back here already signed in — finish the
-  // request it was waiting on without asking for anything twice.
-  useEffect(() => {
-    if (session && pending) {
-      submitRequest(session.userId, pending.fullName, session.email, pending.employeeId, pending.departmentId, pending.role);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.userId]);
+  const [pendingCode, setPendingCode] = useState(false);
+  const [code, setCode] = useState("");
 
   async function submitRequest(
-    userId: string,
     fullName: string,
     workEmail: string,
     empId: string,
     deptId: string,
     requestedRole: string,
   ) {
-    if (!supabase) return;
     setSubmitting(true);
-    const { error: insertError } = await supabase.from("staff_access_requests").insert({
-      user_id: userId,
-      full_name: fullName.trim(),
-      work_email: workEmail.trim(),
-      employee_id: empId.trim(),
-      department_id: deptId,
-      requested_role: requestedRole,
-    });
-    setSubmitting(false);
-    window.sessionStorage.removeItem(PENDING_KEY);
-
-    if (insertError) {
-      setError(insertError.code === "23505" ? "You already have a pending request." : insertError.message);
-      return;
+    setError(null);
+    try {
+      await submitAccessRequest({
+        fullName: fullName.trim(),
+        workEmail: workEmail.trim(),
+        employeeId: empId.trim(),
+        departmentId: deptId ? (deptId as Id<"departments">) : undefined,
+        requestedRole: requestedRole as "field_worker" | "department_manager",
+      });
+      window.sessionStorage.removeItem(PENDING_KEY);
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit this request.");
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitted(true);
   }
+
+  // A confirmed signup lands back here already signed in — finish the
+  // request it was waiting on without asking for anything twice.
+  useEffect(() => {
+    if (session && pending) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time auto-submit of a request saved before email verification, not a render-driven state sync
+      submitRequest(pending.fullName, session.email, pending.employeeId, pending.departmentId, pending.role);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.userId]);
 
   const departmentName = departments.find((d) => d.id === departmentId)?.name ?? "your department";
 
@@ -115,66 +126,94 @@ export function StaffRequestForm({ session, departments }: StaffRequestFormProps
 
     setError(null);
 
-    if (!supabase || !isSupabaseConfigured) {
-      setError("Requesting access isn't available in preview mode — Supabase isn't configured.");
-      return;
-    }
-
     if (session) {
-      await submitRequest(session.userId, name, email, employeeId, departmentId, role);
+      await submitRequest(name, email, employeeId, departmentId, role);
       return;
     }
 
-    // Not signed in yet: create the account and the request together so
-    // this is one continuous flow instead of "sign up, then come back."
+    if (!isLoaded) return;
+
+    // Not signed in yet: create the account, then finish the request once
+    // the verification code confirms it — one continuous flow instead of
+    // "sign up, then come back."
     setSubmitting(true);
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: { data: { full_name: name.trim() } },
-    });
-
-    if (signUpError) {
-      setError(authErrorMessage(signUpError));
+    try {
+      const [firstName, ...rest] = name.trim().split(" ");
+      await signUp.create({ emailAddress: email.trim(), password, firstName, lastName: rest.join(" ") || undefined });
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      setPendingCode(true);
+    } catch (err) {
+      setError(authErrorMessage(err));
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    if (data.session && data.user) {
-      setSubmitting(false);
-      await submitRequest(data.user.id, name, email, employeeId, departmentId, role);
-      return;
-    }
-
-    // Email confirmation is required before a session exists — save what
-    // was entered so nothing has to be retyped once they confirm and sign
-    // back in here.
-    const toSave: PendingRequest = { fullName: name.trim(), employeeId: employeeId.trim(), departmentId, role };
-    window.sessionStorage.setItem(PENDING_KEY, JSON.stringify(toSave));
-    setSubmitting(false);
-    setNeedsConfirmation(true);
   };
 
-  // A request is a row owned by the requester (RLS: user_id = auth.uid()),
-  // so it can only be inserted once we have a real account — either an
-  // existing one signing in, or a brand new one created right here.
-  if (needsConfirmation) {
+  const handleVerify = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!isLoaded) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await signUp.attemptEmailAddressVerification({ code: code.trim() });
+      if (result.status !== "complete") {
+        setError("That code didn't work — check it and try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      const toSave: PendingRequest = { fullName: name.trim(), employeeId: employeeId.trim(), departmentId, role };
+      window.sessionStorage.setItem(PENDING_KEY, JSON.stringify(toSave));
+
+      await setActive({ session: result.createdSessionId });
+      // A full navigation guarantees the server sees the fresh Clerk session
+      // cookie before this page re-renders with `session` populated — the
+      // effect above then finishes submitting the saved request automatically.
+      window.location.assign("/staff/request-access");
+    } catch (err) {
+      setError(authErrorMessage(err));
+      setSubmitting(false);
+    }
+  };
+
+  if (pendingCode) {
     return (
       <div className={styles.formSide}>
         <Link href="/" className={styles.brand}>
           CivicFix
         </Link>
         <div className={styles.formInner}>
-          <div className={styles.form}>
+          <form className={styles.form} onSubmit={handleVerify} noValidate>
             <div className={styles.formHead}>
               <h1 className={styles.title}>Check your email</h1>
               <p className={styles.subtitle}>
-                We sent a confirmation link to {email}. Open it, then{" "}
-                <Link href="/sign-in?next=/staff/request-access">sign in here</Link> — your details are
-                saved and your request finishes submitting automatically.
+                We sent a 6-digit code to {email}. Enter it below to finish creating your account and
+                submit your request.
               </p>
             </div>
-          </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="code">
+                Verification code
+              </label>
+              <input
+                id="code"
+                className={styles.input}
+                placeholder="123456"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                autoComplete="one-time-code"
+                inputMode="numeric"
+              />
+            </div>
+            {error ? (
+              <p className={styles.errorText} role="alert">
+                {error}
+              </p>
+            ) : null}
+            <Button type="submit" block disabled={submitting}>
+              {submitting ? "Verifying…" : "Verify and continue"}
+            </Button>
+          </form>
         </div>
       </div>
     );

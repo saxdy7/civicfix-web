@@ -1,15 +1,9 @@
 import { DEMO_NOTIFICATIONS } from "../demo-data";
-import { supabase } from "../supabase";
+import { convexClient } from "../convex-client";
 import type { AppNotification } from "../types";
 
-interface RawNotificationRow {
-  id: string;
-  title: string;
-  body: string;
-  created_at: string;
-  read_at: string | null;
-  issue_id: string | null;
-}
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 export interface AppNotificationWithIssue extends AppNotification {
   issueId: string | null;
@@ -20,42 +14,26 @@ export interface AppNotificationWithIssue extends AppNotification {
  * a backend job writes to it (FCM delivery isn't implemented yet — that's a
  * separate follow-up) — an honest empty state, not a bug.
  */
-export async function fetchMyNotifications(userId: string): Promise<AppNotificationWithIssue[]> {
-  if (!supabase) return DEMO_NOTIFICATIONS.map((n) => ({ ...n, issueId: null }));
+export async function fetchMyNotifications(_userId: string): Promise<AppNotificationWithIssue[]> {
+  if (!convexClient) return DEMO_NOTIFICATIONS.map((n) => ({ ...n, issueId: null }));
 
-  const { data, error } = await supabase
-    .from("notifications")
-    .select("id, title, body, created_at, read_at, issue_id")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-
-  return (data as RawNotificationRow[]).map((row) => ({
-    id: row.id,
+  const rows = await convexClient.query(api.notifications.listMine, {});
+  return rows.map((row) => ({
+    id: row._id,
     title: row.title,
     body: row.body,
-    createdAt: row.created_at,
-    read: row.read_at !== null,
-    issueId: row.issue_id,
+    createdAt: new Date(row.createdAt).toISOString(),
+    read: row.readAt !== undefined,
+    issueId: row.issueId ?? null,
   }));
 }
 
-export async function markNotificationRead(id: string, userId: string): Promise<void> {
-  if (!supabase) return;
-  await supabase
-    .from("notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("user_id", userId)
-    .is("read_at", null);
+export async function markNotificationRead(id: string, _userId: string): Promise<void> {
+  if (!convexClient) return;
+  await convexClient.mutation(api.notifications.markRead, { notificationId: id as Id<"notifications"> });
 }
 
-export async function markAllNotificationsRead(userId: string): Promise<void> {
-  if (!supabase) return;
-  await supabase
-    .from("notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("user_id", userId)
-    .is("read_at", null);
+export async function markAllNotificationsRead(_userId: string): Promise<void> {
+  if (!convexClient) return;
+  await convexClient.mutation(api.notifications.markAllRead, {});
 }

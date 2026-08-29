@@ -1,6 +1,6 @@
 import { Badge, Card } from "@civicfix/ui-web";
 
-import { getSessionProfile } from "@/lib/supabase-server";
+import { getSessionProfile } from "@/lib/session";
 
 import styles from "../resident.module.css";
 

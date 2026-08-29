@@ -11,19 +11,16 @@ import { Card } from "../../components/Card";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { TextField } from "../../components/TextField";
 import { useAuth } from "../../lib/auth-context";
+import { convexClient, isConvexConfigured } from "../../lib/convex-client";
 import { createIssue, uploadIssuePhoto } from "../../lib/repositories/issues";
 import { CATEGORY_LABEL, STATUS_SHORT_LABEL } from "../../lib/status";
-import { isSupabaseConfigured, supabase } from "../../lib/supabase";
 import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
-import type { IssueCategory, IssueSeverity, IssueStatus } from "../../lib/types";
+import type { IssueCategory, IssueSeverity } from "../../lib/types";
 
-interface SimilarIssue {
-  id: string;
-  tracking_id: string;
-  description: string;
-  status: IssueStatus;
-  distance_m: number;
-}
+import { api } from "../../../../convex/_generated/api";
+import type { Doc } from "../../../../convex/_generated/dataModel";
+
+type SimilarIssue = Doc<"issues"> & { distanceM: number };
 
 const CATEGORIES: { key: IssueCategory; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: "pothole", icon: "warning-outline" },
@@ -43,7 +40,6 @@ interface CapturedPhoto {
   uri: string;
   base64: string;
   mimeType: string;
-  extension: string;
 }
 
 interface CapturedLocation {
@@ -70,20 +66,20 @@ export default function ReportIssue() {
   const canSubmit = category !== null && description.trim().length >= 10 && location !== null;
 
   useEffect(() => {
-    const client = supabase;
-    if (!client || !category || !location) {
+    if (!convexClient || !category || !location) {
       setSimilarIssues([]);
       return;
     }
     const timeout = setTimeout(() => {
-      client
-        .rpc("find_nearby_similar_issues", {
-          p_latitude: location.latitude,
-          p_longitude: location.longitude,
-          p_category: category,
-          p_radius_m: 200,
+      convexClient!
+        .query(api.issues.findNearbySimilar, {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          category,
+          radiusM: 200,
         })
-        .then(({ data }) => setSimilarIssues((data as SimilarIssue[] | null) ?? []));
+        .then((rows) => setSimilarIssues(rows))
+        .catch(() => setSimilarIssues([]));
     }, 600);
     return () => clearTimeout(timeout);
   }, [category, location]);
@@ -95,7 +91,6 @@ export default function ReportIssue() {
       uri: asset.uri,
       base64: asset.base64,
       mimeType: asset.mimeType ?? "image/jpeg",
-      extension: (asset.uri.split(".").pop() || "jpg").toLowerCase(),
     });
   };
 
@@ -148,34 +143,17 @@ export default function ReportIssue() {
     if (!canSubmit || !category || !location || !user) return;
     setError(null);
 
-    if (!isSupabaseConfigured) {
+    if (!isConvexConfigured) {
       const demoTrackingId = `CF-${Math.floor(10000 + Math.random() * 90000)}`;
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       router.push({ pathname: "/report/confirmation", params: { trackingId: demoTrackingId } });
       return;
     }
 
-    let storageKey: string | null = null;
-    let mimeType: string | null = null;
-    let checksum: string | null = null;
-
-    if (photo) {
-      setUploadStage("photo");
-      const uploadResult = await uploadIssuePhoto(user.id, {
-        base64: photo.base64,
-        contentType: photo.mimeType,
-        extension: photo.extension,
-      });
-      if ("error" in uploadResult) {
-        setError(`Photo upload failed: ${uploadResult.error}`);
-        setUploadStage("idle");
-        return;
-      }
-      storageKey = uploadResult.storageKey;
-      mimeType = photo.mimeType;
-      checksum = uploadResult.checksum;
-    }
-
+    // Convex requires the issue to exist before media can be linked to it —
+    // create the report first, then attach the photo as a best-effort
+    // follow-up (a failed photo attach never blocks a report that already
+    // exists and is already being tracked).
     setUploadStage("report");
     const result = await createIssue({
       category,
@@ -184,18 +162,27 @@ export default function ReportIssue() {
       latitude: location.latitude,
       longitude: location.longitude,
       neighborhood: neighborhood.trim() || undefined,
-      storageKey,
-      mimeType,
-      checksum,
     });
 
-    setUploadStage("idle");
-
     if ("error" in result) {
+      setUploadStage("idle");
       setError(result.error);
       return;
     }
 
+    if (photo) {
+      setUploadStage("photo");
+      const uploadResult = await uploadIssuePhoto(result.issueId, {
+        uri: photo.uri,
+        base64: photo.base64,
+        mimeType: photo.mimeType,
+      });
+      if (uploadResult.error) {
+        setError(`Report ${result.trackingId} was filed, but the photo didn't attach: ${uploadResult.error}`);
+      }
+    }
+
+    setUploadStage("idle");
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     router.push({ pathname: "/report/confirmation", params: { trackingId: result.trackingId } });
   };
@@ -264,9 +251,9 @@ export default function ReportIssue() {
           <Text style={styles.cardTitle}>Similar reports nearby</Text>
           <Text style={styles.cardHint}>Consider confirming one of these instead of filing a new report.</Text>
           {similarIssues.map((s) => (
-            <View key={s.id} style={styles.similarRow}>
+            <View key={s._id} style={styles.similarRow}>
               <Text style={styles.cardHint}>
-                {s.tracking_id} · {STATUS_SHORT_LABEL[s.status]} · ~{Math.round(s.distance_m)}m away
+                {s.trackingId} · {STATUS_SHORT_LABEL[s.status]} · ~{Math.round(s.distanceM)}m away
               </Text>
             </View>
           ))}

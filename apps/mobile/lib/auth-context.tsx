@@ -1,3 +1,5 @@
+import { useAuth as useClerkAuth, useSignIn, useSignUp, useUser } from "@clerk/clerk-expo";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import {
   createContext,
   useContext,
@@ -6,23 +8,23 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
-import type { Session } from "@supabase/supabase-js";
 
-import { isSupabaseConfigured, supabase } from "./supabase";
+import { isConvexConfigured } from "./convex-client";
+
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 export type UserRole = "citizen" | "field_worker";
 
-const STAFF_ROLES = ["field_worker", "department_manager", "administrator", "auditor"];
-
 export interface CurrentUser {
-  id: string;
+  id: Id<"users">;
   name: string;
   email: string;
-  /** Every role row this account holds in `user_roles` — never client-editable. */
+  /** Every role row this account holds — never client-editable. */
   roles: string[];
   /** Collapsed for the mobile UI's binary citizen/field-worker tab gating. */
   role: UserRole;
-  /** True only in the local fallback used when Supabase isn't configured. */
+  /** True only in the local fallback used when Clerk/Convex aren't configured. */
   isDemo: boolean;
 }
 
@@ -37,45 +39,26 @@ interface AuthContextValue {
     password: string,
     fullName: string,
   ) => Promise<{ error: string | null; needsConfirmation: boolean }>;
+  /** Completes a sign-up started by signUp — the 6-digit code sent to the new account's email. */
+  confirmSignUp: (code: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  /** Sends a 6-digit reset code to the given email. */
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
-  /** Only relevant when Supabase isn't configured — enters the demo fallback. */
+  /** Completes a reset started by requestPasswordReset. */
+  confirmPasswordReset: (code: string, newPassword: string) => Promise<{ error: string | null }>;
+  /** Only relevant when Clerk isn't configured — enters the demo fallback. */
   continueAsDemo: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function authErrorMessage(error: unknown): string {
-  if (error && typeof error === "object" && "message" in error) {
-    return String((error as { message: unknown }).message);
-  }
-  return "Something went wrong. Please try again.";
-}
-
-async function loadProfile(session: Session): Promise<CurrentUser> {
-  if (!supabase) throw new Error("Supabase is not configured");
-
-  const [{ data: profile }, { data: roleRows }] = await Promise.all([
-    supabase.from("profiles").select("full_name, email").eq("id", session.user.id).maybeSingle(),
-    supabase.from("user_roles").select("role").eq("user_id", session.user.id),
-  ]);
-
-  const roles = (roleRows ?? []).map((r) => r.role as string);
-
-  return {
-    id: session.user.id,
-    // Never fall back to a raw email localpart as a "name" — it reads as a
-    // broken username, not a greeting. A generic "Resident" is more honest.
-    name: profile?.full_name?.trim() || "Resident",
-    email: profile?.email || session.user.email || "",
-    roles,
-    role: roles.includes("field_worker") ? "field_worker" : "citizen",
-    isDemo: false,
-  };
+function authErrorMessage(err: unknown): string {
+  const clerkErr = err as { errors?: { message?: string }[] };
+  return clerkErr?.errors?.[0]?.message ?? "Something went wrong. Please try again.";
 }
 
 const DEMO_USER: CurrentUser = {
-  id: "demo-user",
+  id: "demo-user" as Id<"users">,
   name: "Demo resident",
   email: "demo@civicfix.local",
   roles: ["citizen"],
@@ -83,116 +66,204 @@ const DEMO_USER: CurrentUser = {
   isDemo: true,
 };
 
-export function AuthProvider({ children }: PropsWithChildren) {
-  const [user, setUser] = useState<CurrentUser | null>(null);
-  const [loading, setLoading] = useState(true);
+// ClerkAuthProvider below calls Convex hooks unconditionally, so the real
+// path requires BOTH Clerk and Convex configured together — see
+// app/_layout.tsx's BackendProviders, which only mounts
+// ConvexProviderWithClerk (and therefore only ever renders this branch)
+// when both are present.
+const isBackendConfigured = Boolean(process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY) && isConvexConfigured;
 
+/** Used when Clerk/Convex aren't fully configured — there is no session to restore, only the demo fallback. */
+function DemoOnlyAuthProvider({ children }: PropsWithChildren) {
+  const [user, setUser] = useState<CurrentUser | null>(null);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      loading: false,
+      signIn: async () => ({ error: "Sign-in isn't available in demo mode — Clerk isn't configured." }),
+      signUp: async () => ({
+        error: "Sign-up isn't available in demo mode — Clerk isn't configured.",
+        needsConfirmation: false,
+      }),
+      confirmSignUp: async () => ({ error: "Not available in demo mode." }),
+      signOut: async () => setUser(null),
+      requestPasswordReset: async () => ({ error: "Not available in demo mode." }),
+      confirmPasswordReset: async () => ({ error: "Not available in demo mode." }),
+      continueAsDemo: () => setUser(DEMO_USER),
+    }),
+    [user],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+/**
+ * The real path — Clerk owns identity, Convex holds the profile/roles.
+ * Only ever mounted inside <ClerkProvider>/<ConvexProviderWithClerk> (see
+ * app/_layout.tsx) — every hook here assumes that context is present.
+ */
+function ClerkAuthProvider({ children }: PropsWithChildren) {
+  const { isLoaded: authLoaded, isSignedIn, signOut: clerkSignOut } = useClerkAuth();
+  const { user: clerkUser } = useUser();
+  const { isLoaded: signInLoaded, signIn, setActive: setActiveSignIn } = useSignIn();
+  const { isLoaded: signUpLoaded, signUp, setActive: setActiveSignUp } = useSignUp();
+  const convex = useConvex();
+
+  const viewer = useQuery(api.users.viewer, isSignedIn ? {} : "skip");
+  const ensureUser = useMutation(api.users.ensureUser);
+
+  // Syncs the Clerk identity into Convex's `users` table right after sign-in
+  // — keyed on the Clerk user id so it re-runs for a genuinely new sign-in
+  // (including signing out and back in as someone else) but not on every
+  // render.
+  const [ensuredFor, setEnsuredFor] = useState<string | null>(null);
   useEffect(() => {
-    if (!supabase) {
-      // No Supabase configured at all — there is no session to restore, so
-      // land on sign-in and let the user explicitly opt into the demo.
-      setLoading(false);
+    if (!isSignedIn) {
+      setEnsuredFor(null);
       return;
     }
+    if (clerkUser && ensuredFor !== clerkUser.id) {
+      setEnsuredFor(clerkUser.id);
+      ensureUser({
+        fullName: clerkUser.fullName ?? undefined,
+        email: clerkUser.primaryEmailAddress?.emailAddress ?? undefined,
+      }).catch(() => setEnsuredFor(null));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, clerkUser?.id]);
 
-    let active = true;
+  const loading = !authLoaded || (isSignedIn === true && viewer === undefined);
 
-    supabase.auth
-      .getSession()
-      .then(async ({ data: { session } }) => {
-        if (!active) return;
-        if (session) {
-          try {
-            setUser(await loadProfile(session));
-          } catch {
-            setUser(null);
-          }
-        }
-      })
-      .catch(() => {
-        // A storage/network failure while restoring the session should land
-        // the user on sign-in, never hang the app on a permanent spinner.
-        if (active) setUser(null);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!active) return;
-      if (!session) {
-        setUser(null);
-        return;
-      }
-      try {
-        setUser(await loadProfile(session));
-      } catch {
-        setUser(null);
-      }
-    });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
+  const user: CurrentUser | null = useMemo(() => {
+    if (!isSignedIn || !viewer) return null;
+    return {
+      id: viewer._id,
+      name: viewer.fullName?.trim() || "Resident",
+      email: viewer.email ?? "",
+      roles: viewer.roles,
+      role: viewer.roles.includes("field_worker") ? "field_worker" : "citizen",
+      isDemo: false,
     };
-  }, []);
+  }, [isSignedIn, viewer]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       loading,
       signIn: async (identifier, password) => {
-        if (!supabase) return { error: "Supabase is not configured." };
+        if (!signInLoaded || !signIn) return { error: "Not ready yet — try again in a moment." };
 
-        let email = identifier.trim();
-        if (!email.includes("@")) {
-          const { data: resolved } = await supabase.rpc("resolve_login_email", { p_identifier: email });
+        // A staff member may sign in with their employee ID instead of
+        // email — Clerk itself only signs in by email/username, so this
+        // resolves an ID to the account's email first via a pre-auth
+        // Convex query. A plain email skips the lookup entirely.
+        let emailOrUsername = identifier.trim();
+        if (!emailOrUsername.includes("@")) {
+          const resolved = await convex.query(api.users.resolveLoginEmail, { identifier: emailOrUsername });
           if (!resolved) return { error: "Incorrect email/employee ID or password." };
-          email = resolved;
+          emailOrUsername = resolved;
         }
 
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return { error: error ? authErrorMessage(error) : null };
+        try {
+          const result = await signIn.create({ identifier: emailOrUsername, password });
+          if (result.status !== "complete") {
+            return { error: "Additional verification is required for this account." };
+          }
+          await setActiveSignIn({ session: result.createdSessionId });
+          return { error: null };
+        } catch (err) {
+          return { error: authErrorMessage(err) };
+        }
       },
       signUp: async (email, password, fullName) => {
-        if (!supabase) return { error: "Supabase is not configured.", needsConfirmation: false };
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { full_name: fullName.trim() } },
-        });
-        if (error) return { error: authErrorMessage(error), needsConfirmation: false };
-        return { error: null, needsConfirmation: !data.session };
+        if (!signUpLoaded || !signUp) {
+          return { error: "Not ready yet — try again in a moment.", needsConfirmation: false };
+        }
+        try {
+          // Residents always sign up as `citizen` — Convex's ensureUser
+          // mutation above is the only place a role is granted at signup,
+          // and it never accepts one from the client.
+          const [firstName, ...rest] = fullName.trim().split(" ");
+          await signUp.create({
+            emailAddress: email.trim(),
+            password,
+            firstName,
+            lastName: rest.join(" ") || undefined,
+          });
+          await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+          return { error: null, needsConfirmation: true };
+        } catch (err) {
+          return { error: authErrorMessage(err), needsConfirmation: false };
+        }
+      },
+      confirmSignUp: async (code) => {
+        if (!signUpLoaded || !signUp) return { error: "Not ready yet — try again in a moment." };
+        try {
+          const result = await signUp.attemptEmailAddressVerification({ code: code.trim() });
+          if (result.status !== "complete") {
+            return { error: "That code didn't work — check it and try again." };
+          }
+          await setActiveSignUp({ session: result.createdSessionId });
+          return { error: null };
+        } catch (err) {
+          return { error: authErrorMessage(err) };
+        }
       },
       signOut: async () => {
-        if (user?.isDemo) {
-          setUser(null);
-          return;
-        }
-        await supabase?.auth.signOut();
-        setUser(null);
+        await clerkSignOut();
       },
       requestPasswordReset: async (email) => {
-        if (!supabase) return { error: "Supabase is not configured." };
-        // Completing the loop (deep link back into the app to set a new
-        // password) needs `civicfix://reset-password` added to this
-        // Supabase project's Auth > URL Configuration redirect allow-list —
-        // that's a dashboard setting, not something this client can set.
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: "civicfix://reset-password",
-        });
-        return { error: error ? authErrorMessage(error) : null };
+        if (!signInLoaded || !signIn) return { error: "Not ready yet — try again in a moment." };
+        try {
+          await signIn.create({ strategy: "reset_password_email_code", identifier: email.trim() });
+          return { error: null };
+        } catch (err) {
+          return { error: authErrorMessage(err) };
+        }
+      },
+      confirmPasswordReset: async (code, newPassword) => {
+        if (!signInLoaded || !signIn) return { error: "Not ready yet — try again in a moment." };
+        try {
+          const result = await signIn.attemptFirstFactor({
+            strategy: "reset_password_email_code",
+            code: code.trim(),
+            password: newPassword,
+          });
+          if (result.status !== "complete") {
+            return { error: "That code didn't work — check it and try again." };
+          }
+          await setActiveSignIn({ session: result.createdSessionId });
+          return { error: null };
+        } catch (err) {
+          return { error: authErrorMessage(err) };
+        }
       },
       continueAsDemo: () => {
-        if (!isSupabaseConfigured) setUser(DEMO_USER);
+        // Not applicable once Clerk is configured — the sign-in screen never
+        // shows this option in that case.
       },
     }),
-    [user, loading],
+    [
+      user,
+      loading,
+      signInLoaded,
+      signIn,
+      signUpLoaded,
+      signUp,
+      convex,
+      clerkSignOut,
+      setActiveSignIn,
+      setActiveSignUp,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function AuthProvider({ children }: PropsWithChildren) {
+  if (!isBackendConfigured) return <DemoOnlyAuthProvider>{children}</DemoOnlyAuthProvider>;
+  return <ClerkAuthProvider>{children}</ClerkAuthProvider>;
 }
 
 export function useAuth() {

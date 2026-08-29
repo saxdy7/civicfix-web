@@ -1,32 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View, StyleSheet } from "react-native";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import { useMutation, useQuery } from "convex/react";
 
-import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import { color, fontFamily, fontSize, radius, spacing } from "../lib/theme";
 import { Button } from "./Button";
 import { Card } from "./Card";
 
-interface Message {
-  id: string;
-  senderId: string;
-  senderRole: "resident" | "staff";
-  body: string;
-  createdAt: string;
-}
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
-interface RawMessageRow {
-  id: string;
-  sender_id: string;
-  sender_role: "resident" | "staff";
-  body: string;
-  created_at: string;
-}
-
-function mapRow(row: RawMessageRow): Message {
-  return { id: row.id, senderId: row.sender_id, senderRole: row.sender_role, body: row.body, createdAt: row.created_at };
-}
-
+/**
+ * Only ever rendered from a screen gated on a signed-in `user` (see
+ * reports/[id].tsx, assignments/[id]/index.tsx) — which only happens when
+ * the real Clerk+Convex backend path is active, so the ConvexProvider these
+ * hooks need is always present here.
+ */
 export function IssueChat({
   issueId,
   currentUserId,
@@ -36,80 +24,32 @@ export function IssueChat({
   currentUserId: string;
   senderRole: "resident" | "staff";
 }) {
-  const [messages, setMessages] = useState<Message[] | null>(isSupabaseConfigured ? null : []);
+  const messages = useQuery(api.issueMessages.listForIssue, { issueId: issueId as Id<"issues"> });
+  const send = useMutation(api.issueMessages.send);
+  const markRead = useMutation(api.issueMessages.markRead);
+
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    if (!supabase) return;
-
-    let channel: RealtimeChannel | null = null;
-    let active = true;
-
-    async function load() {
-      if (!supabase) return;
-      const { data } = await supabase
-        .from("issue_messages")
-        .select("id, sender_id, sender_role, body, created_at")
-        .eq("issue_id", issueId)
-        .order("created_at", { ascending: true });
-
-      if (!active) return;
-      setMessages(((data as RawMessageRow[] | null) ?? []).map(mapRow));
-      await supabase.rpc("mark_issue_messages_read", { p_issue_id: issueId });
-
-      channel = supabase
-        .channel(`issue-messages-${issueId}`)
-        .on(
-          "postgres_changes",
-          { event: "INSERT", schema: "public", table: "issue_messages", filter: `issue_id=eq.${issueId}` },
-          (payload) => {
-            const row = payload.new as RawMessageRow;
-            setMessages((prev) => (prev ? [...prev, mapRow(row)] : [mapRow(row)]));
-            if (row.sender_id !== currentUserId) {
-              supabase?.rpc("mark_issue_messages_read", { p_issue_id: issueId });
-            }
-          },
-        )
-        .subscribe();
-    }
-
-    load();
-
-    return () => {
-      active = false;
-      if (channel) supabase?.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [issueId]);
+    if (messages && messages.length > 0) void markRead({ issueId: issueId as Id<"issues"> });
+  }, [messages, issueId, markRead]);
 
   const handleSend = async () => {
-    if (!draft.trim() || !supabase) return;
+    if (!draft.trim()) return;
     setSending(true);
     setError(null);
-    const { error: insertError } = await supabase.from("issue_messages").insert({
-      issue_id: issueId,
-      sender_id: currentUserId,
-      sender_role: senderRole,
-      body: draft.trim(),
-    });
-    setSending(false);
-    if (insertError) {
-      setError(insertError.message);
-      return;
+    try {
+      await send({ issueId: issueId as Id<"issues">, body: draft.trim(), senderRole });
+      setDraft("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send this message.");
+    } finally {
+      setSending(false);
     }
-    setDraft("");
   };
-
-  if (!isSupabaseConfigured) {
-    return (
-      <Card>
-        <Text style={styles.emptyHint}>Chat isn&apos;t available in demo mode.</Text>
-      </Card>
-    );
-  }
 
   return (
     <Card style={{ gap: spacing[3] }}>
@@ -119,13 +59,13 @@ export function IssueChat({
         style={styles.list}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
       >
-        {messages === null ? (
+        {messages === undefined ? (
           <Text style={styles.emptyHint}>Loading…</Text>
         ) : messages.length === 0 ? (
           <Text style={styles.emptyHint}>No messages yet — say hello.</Text>
         ) : (
           messages.map((m) => (
-            <View key={m.id} style={[styles.bubble, m.senderId === currentUserId ? styles.bubbleOwn : styles.bubbleOther]}>
+            <View key={m._id} style={[styles.bubble, m.senderId === currentUserId ? styles.bubbleOwn : styles.bubbleOther]}>
               <Text style={styles.bubbleRole}>{m.senderRole === "staff" ? "City staff" : "Resident"}</Text>
               <Text style={[styles.bubbleBody, m.senderId === currentUserId && styles.bubbleBodyOwn]}>{m.body}</Text>
               <Text style={styles.bubbleTime}>

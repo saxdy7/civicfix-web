@@ -3,7 +3,6 @@
 import { useCallback, useState } from "react";
 import type { BotAction, BotMessage } from "./types";
 import { generateBotResponse } from "./bot-engine";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 const INITIAL_GREETING: BotMessage = {
   id: "initial-msg",
@@ -73,22 +72,9 @@ export function useCivicBot() {
 
         setIsTyping(true);
 
-        // If Supabase is configured, submit to database
-        if (isSupabaseConfigured && supabase) {
-          try {
-            await supabase.from("issues").insert({
-              category: draft.category,
-              severity: draft.severity,
-              description: draft.description,
-              neighborhood: draft.neighborhood,
-              tracking_id: newTrackingId,
-              status: "reported",
-              is_public: true,
-            });
-          } catch (err) {
-            console.warn("Supabase issue insertion error", err);
-          }
-        }
+        // Illustrative only — this widget doesn't collect a real GPS pin or
+        // attribute a reporter, so it never writes to Convex. A real report
+        // always goes through /app/report's ReportComposer, which does.
 
         setTimeout(() => {
           setIsTyping(false);

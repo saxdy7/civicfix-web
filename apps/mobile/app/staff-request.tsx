@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pressable, Text, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { useMutation, useQuery } from "convex/react";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Button } from "../components/Button";
@@ -8,24 +9,52 @@ import { Card } from "../components/Card";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { TextField } from "../components/TextField";
 import { useAuth } from "../lib/auth-context";
-import { isSupabaseConfigured, supabase } from "../lib/supabase";
+import { isBackendConfigured } from "../lib/convex-client";
 import { color, fontFamily, fontSize, radius, spacing } from "../lib/theme";
+
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 const ROLES = [
   { key: "field_worker", title: "Field worker", hint: "Accept assignments, capture evidence" },
   { key: "department_manager", title: "Dept. manager", hint: "Triage, route and assign" },
 ];
 
-interface Department {
-  id: string;
-  name: string;
+/**
+ * Convex's useQuery/useMutation require a ConvexProvider ancestor even when
+ * "skipped" — that provider is only mounted (see app/_layout.tsx's
+ * BackendProviders) when isBackendConfigured is true, so this screen must
+ * not call those hooks at all outside that condition. Splitting into two
+ * components (chosen below, not via a conditional hook call) keeps this
+ * screen safe to open in demo mode instead of crashing.
+ */
+export default function StaffRequestAccess() {
+  if (!isBackendConfigured) return <DemoStaffRequestAccess />;
+  return <ConfiguredStaffRequestAccess />;
 }
 
-export default function StaffRequestAccess() {
+function DemoStaffRequestAccess() {
+  const router = useRouter();
+  return (
+    <ScreenContainer edges={["left", "right"]}>
+      <Text style={styles.title}>Not available in demo mode</Text>
+      <Text style={styles.body}>
+        Requesting staff access needs a real Clerk/Convex connection, which isn&apos;t configured for
+        this build.
+      </Text>
+      <Button label="Back to profile" onPress={() => router.replace("/(tabs)/profile")} />
+    </ScreenContainer>
+  );
+}
+
+function ConfiguredStaffRequestAccess() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const departmentRows = useQuery(api.departments.list, {});
+  const departments = (departmentRows ?? []).map((d) => ({ id: d._id, name: d.name }));
+  const submitAccessRequest = useMutation(api.staffAccessRequests.submit);
+
   const [fullName, setFullName] = useState(user?.name ?? "");
   const [workEmail, setWorkEmail] = useState(user?.email ?? "");
   const [employeeId, setEmployeeId] = useState("");
@@ -37,17 +66,9 @@ export default function StaffRequestAccess() {
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    if (!supabase) return;
-    supabase
-      .from("departments")
-      .select("id, name")
-      .order("name")
-      .then(({ data }) => setDepartments(data ?? []));
-  }, []);
-
-  useEffect(() => {
     if (departments.length > 0 && !departmentId) setDepartmentId(departments[0].id);
-  }, [departments, departmentId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departments.length, departmentId]);
 
   if (!user) {
     return (
@@ -79,29 +100,20 @@ export default function StaffRequestAccess() {
     setError(null);
     setSubmitting(true);
 
-    if (!supabase || !isSupabaseConfigured) {
-      setError("Requesting access isn't available in demo mode — Supabase isn't configured.");
+    try {
+      await submitAccessRequest({
+        fullName: fullName.trim(),
+        workEmail: workEmail.trim(),
+        employeeId: employeeId.trim(),
+        departmentId: departmentId as Id<"departments">,
+        requestedRole: role as "field_worker" | "department_manager",
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit this request.");
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    const { error: insertError } = await supabase.from("staff_access_requests").insert({
-      user_id: user.id,
-      full_name: fullName.trim(),
-      work_email: workEmail.trim(),
-      employee_id: employeeId.trim(),
-      department_id: departmentId,
-      requested_role: role,
-    });
-
-    setSubmitting(false);
-
-    if (insertError) {
-      setError(insertError.code === "23505" ? "You already have a pending request." : insertError.message);
-      return;
-    }
-
-    setSubmitted(true);
   };
 
   if (submitted) {

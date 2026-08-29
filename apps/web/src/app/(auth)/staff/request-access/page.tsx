@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { fetchQuery } from "convex/nextjs";
 
 import { getPlatformStats } from "@/lib/platform-stats";
-import { createServerSupabase, getSessionProfile } from "@/lib/supabase-server";
+import { getSessionProfile } from "@/lib/session";
+
+import { api } from "@convex/_generated/api";
 
 import { AuthShowcase } from "../../AuthShowcase";
 import { StaffRequestForm } from "./StaffRequestForm";
@@ -12,22 +15,17 @@ export const metadata: Metadata = {
 };
 
 export default async function StaffRequestAccessPage() {
-  const [stats, session] = await Promise.all([getPlatformStats(), getSessionProfile()]);
-
-  let departments: { id: string; name: string }[] = [];
-  if (session) {
-    const supabase = await createServerSupabase();
-    if (supabase) {
-      const { data } = await supabase.from("departments").select("id, name").order("name");
-      departments = data ?? [];
-    }
-  }
+  const [stats, session, departments] = await Promise.all([
+    getPlatformStats(),
+    getSessionProfile(),
+    fetchQuery(api.departments.list, {}),
+  ]);
 
   return (
     <div className={styles.shell}>
       <StaffRequestForm
         session={session ? { userId: session.userId, email: session.email } : null}
-        departments={departments}
+        departments={departments.map((d) => ({ id: d._id, name: d.name }))}
       />
       <AuthShowcase
         title="Staff access is granted, never claimed."

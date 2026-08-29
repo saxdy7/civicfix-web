@@ -9,7 +9,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useAuth } from "../../lib/auth-context";
-import { confirmIssue, fetchMyConfirmedIssueIds, fetchMyIssues, fetchNearbyPublicIssues } from "../../lib/repositories/issues";
+import { fetchMyIssues, fetchNearbyPublicIssues } from "../../lib/repositories/issues";
 import { fetchMyNotifications } from "../../lib/repositories/notifications";
 import { CATEGORY_LABEL } from "../../lib/status";
 import { color, fontFamily, fontSize, spacing } from "../../lib/theme";
@@ -29,23 +29,19 @@ export default function Home() {
   const { user } = useAuth();
   const [myIssues, setMyIssues] = useState<Issue[]>([]);
   const [nearby, setNearby] = useState<Issue[]>([]);
-  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [issues, nearbyIssues, confirmed, notes] = await Promise.all([
+    const [issues, nearbyIssues, notes] = await Promise.all([
       fetchMyIssues(user.id),
       fetchNearbyPublicIssues(),
-      fetchMyConfirmedIssueIds(user.id),
       fetchMyNotifications(user.id),
     ]);
     setMyIssues(issues);
     setNearby(nearbyIssues);
-    setConfirmedIds(confirmed);
     setNotifications(notes);
   }, [user]);
 
@@ -67,15 +63,6 @@ export default function Home() {
   };
 
   const activeIssues = myIssues.filter((i) => ACTIVE_STATUSES.has(i.status));
-  const confirmable = nearby.find((i) => i.reporterId && i.reporterId !== user?.id && !confirmedIds.has(i.id));
-
-  const handleConfirm = async () => {
-    if (!confirmable || !user) return;
-    setConfirming(true);
-    const { error } = await confirmIssue(confirmable.id, user.id);
-    setConfirming(false);
-    if (!error) setConfirmedIds((prev) => new Set(prev).add(confirmable.id));
-  };
 
   return (
     <ScreenContainer
@@ -145,26 +132,6 @@ export default function Home() {
           ))
         )}
       </View>
-
-      {/* Community confirmation */}
-      {confirmable ? (
-        <Card tone="muted" style={styles.confirmCard}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.confirmTitle}>Seeing this too?</Text>
-            <StatusBadge status={confirmable.status} />
-          </View>
-          <Text style={styles.confirmBody} numberOfLines={2}>
-            {CATEGORY_LABEL[confirmable.category]} reported near {confirmable.neighborhood} —{" "}
-            {confirmable.description}
-          </Text>
-          <Button
-            label={confirming ? "Confirming…" : "Confirm — I see this too"}
-            variant="secondary"
-            disabled={confirming}
-            onPress={handleConfirm}
-          />
-        </Card>
-      ) : null}
 
       {/* Nearby activity */}
       <View style={styles.section}>
@@ -275,20 +242,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontFamily: fontFamily.regular,
     color: color.foreground,
-  },
-  confirmCard: {
-    gap: spacing[2],
-  },
-  confirmTitle: {
-    fontSize: fontSize.md,
-    fontFamily: fontFamily.semibold,
-    color: color.foreground,
-  },
-  confirmBody: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.regular,
-    color: color.mutedForeground,
-    lineHeight: 20,
   },
   nearbyRow: {
     flexDirection: "row",

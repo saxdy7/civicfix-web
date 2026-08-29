@@ -1,19 +1,19 @@
 import { Text, View, StyleSheet } from "react-native";
 
-import { isSupabaseConfigured } from "../lib/supabase";
+import { isConvexConfigured } from "../lib/convex-client";
 import { color, fontSize, radius, spacing } from "../lib/theme";
 
 /**
- * Shown on every screen (via ScreenContainer) whenever Supabase isn't
+ * Shown on every screen (via ScreenContainer) whenever Clerk/Convex aren't
  * configured, so the local demo fallback can never be mistaken for a real
  * account or live data.
  */
 export function DemoBanner() {
-  if (isSupabaseConfigured) return null;
+  if (isConvexConfigured && Boolean(process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY)) return null;
 
   return (
     <View style={styles.banner}>
-      <Text style={styles.text}>DEMO MODE — not connected to Supabase, nothing here is real</Text>
+      <Text style={styles.text}>DEMO MODE — not connected to Clerk/Convex, nothing here is real</Text>
     </View>
   );
 }

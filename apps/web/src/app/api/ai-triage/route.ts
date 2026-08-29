@@ -1,7 +1,10 @@
+import { auth } from "@clerk/nextjs/server";
+import { fetchQuery } from "convex/nextjs";
 import { NextResponse } from "next/server";
 
-import { createServerSupabase } from "@/lib/supabase-server";
 import type { IssueCategory, IssueSeverity } from "@/lib/types";
+
+import { api } from "@convex/_generated/api";
 
 // Deployed alongside the rest of the web app (Vercel), unlike the FastAPI
 // service in services/api which only runs locally in this project — so this
@@ -114,15 +117,8 @@ async function callGroq(description: string, imageDataUrl: string | null): Promi
 }
 
 export async function POST(req: Request) {
-  const supabase = await createServerSupabase();
-  if (!supabase) {
-    return NextResponse.json({ error: "Not configured" }, { status: 503 });
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const { userId, getToken } = await auth();
+  if (!userId) {
     return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
 
@@ -137,12 +133,8 @@ export async function POST(req: Request) {
   const result = (await callGroq(description, imageDataUrl)) ?? heuristicTriage(description || "civic issue");
 
   // Real, admin-configured department list — not a hardcoded map.
-  const { data: dept } = await supabase
-    .from("departments")
-    .select("name")
-    .contains("categories", [result.category])
-    .limit(1)
-    .maybeSingle();
+  const token = (await getToken({ template: "convex" })) ?? undefined;
+  const department = await fetchQuery(api.departments.findByCategory, { category: result.category }, { token });
 
   return NextResponse.json({
     category: result.category,
@@ -150,6 +142,6 @@ export async function POST(req: Request) {
     confidence: result.confidence,
     reasoning: result.reasoning,
     source: result.source,
-    suggestedDepartment: dept?.name ?? null,
+    suggestedDepartment: department?.name ?? null,
   });
 }

@@ -1,69 +1,45 @@
+import { auth } from "@clerk/nextjs/server";
 import { notFound } from "next/navigation";
+import { fetchQuery } from "convex/nextjs";
 import { Card } from "@civicfix/ui-web";
 
-import { ConfirmButton } from "@/components/ConfirmButton";
 import { PublicShell } from "@/components/PublicShell";
 import { StatusPill } from "@/components/StatusPill";
-import {
-  mapIssueRow,
-  type RawIssueEventRow,
-  type RawIssueRow,
-} from "@/lib/issue-mappers";
+import { mapConvexIssue } from "@/lib/issue-mappers";
 import { CATEGORY_LABEL, STATUS_LABEL, STATUS_SHORT_LABEL } from "@/lib/status";
-import { createServerSupabase } from "@/lib/supabase-server";
 import { MOCK_ISSUES } from "@/lib/mock-data";
 import type { Issue } from "@/lib/types";
 
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
+
 import styles from "./page.module.css";
+
+/** Convex document ids are opaque lowercase base32-ish strings — distinct enough from a "CF-xxxxx" tracking id or a mock "iss-1" id to route on. */
+function looksLikeConvexId(value: string): boolean {
+  return /^[a-z0-9]{20,}$/i.test(value) && !value.toUpperCase().startsWith("CF-");
+}
 
 export default async function IssueDetailPage({ params }: PageProps<"/issues/[id]">) {
   const { id } = await params;
 
   let issue: Issue | null = null;
-  let reporterId: string | null = null;
-  let currentUserId: string | null = null;
-  let confirmCount = 0;
-  let alreadyConfirmed = false;
-  const supabase = await createServerSupabase();
 
-  if (supabase) {
-    const [{ data: row }, { data: userData }] = await Promise.all([
-      supabase.from("issues").select("*, departments(name)").eq("id", id).maybeSingle(),
-      supabase.auth.getUser(),
-    ]);
-    currentUserId = userData.user?.id ?? null;
-
-    if (row) {
-      reporterId = row.reporter_id ?? null;
-      const [{ data: eventRows }, { count }, { data: myConfirmation }] = await Promise.all([
-        supabase
-          .from("issue_events")
-          .select("id, status, note, created_at")
-          .eq("issue_id", id)
-          .order("created_at", { ascending: true }),
-        supabase
-          .from("confirmations")
-          .select("id", { count: "exact", head: true })
-          .eq("issue_id", id),
-        currentUserId
-          ? supabase.from("confirmations").select("id").eq("issue_id", id).eq("user_id", currentUserId).maybeSingle()
-          : Promise.resolve({ data: null }),
-      ]);
-
-      confirmCount = count ?? 0;
-      alreadyConfirmed = Boolean(myConfirmation);
-      issue = mapIssueRow(row as RawIssueRow, (eventRows as RawIssueEventRow[] | null) ?? []);
+  if (looksLikeConvexId(id)) {
+    const { getToken } = await auth();
+    const token = (await getToken({ template: "convex" })) ?? undefined;
+    const doc = await fetchQuery(api.issues.getById, { issueId: id as Id<"issues"> }, { token }).catch(() => null);
+    if (doc) {
+      issue = mapConvexIssue(doc, { departmentName: doc.departmentName, events: doc.events });
     }
   }
 
-  // Fallback to mock issues if not in DB (preview / demo mode)
+  // Fallback to mock issues if not in Convex (preview / demo mode).
   if (!issue) {
     const mockMatch = MOCK_ISSUES.find(
-      (m) => m.id === id || m.trackingId.toLowerCase() === id.toLowerCase()
+      (m) => m.id === id || m.trackingId.toLowerCase() === id.toLowerCase(),
     );
-    if (mockMatch) {
-      issue = mockMatch;
-    }
+    if (mockMatch) issue = mockMatch;
   }
 
   if (!issue) notFound();
@@ -114,17 +90,6 @@ export default async function IssueDetailPage({ params }: PageProps<"/issues/[id
         </div>
 
         <div>
-          <Card style={{ marginBottom: "var(--space-5)" }}>
-            <h2 className={styles.sectionTitle}>Community</h2>
-            <ConfirmButton
-              issueId={issue.id}
-              userId={currentUserId}
-              isReporter={reporterId !== null && reporterId === currentUserId}
-              initialConfirmed={alreadyConfirmed}
-              initialCount={confirmCount}
-            />
-          </Card>
-
           <Card>
             <h2 className={styles.sectionTitle}>At a glance</h2>
             <div className={styles.sideStat}>

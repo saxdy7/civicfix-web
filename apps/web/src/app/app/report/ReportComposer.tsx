@@ -1,5 +1,7 @@
 "use client";
 
+import { useUser } from "@clerk/nextjs";
+import { useConvex, useMutation } from "convex/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
@@ -7,9 +9,11 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { Badge, Button, Card } from "@civicfix/ui-web";
 
 import { LocationPicker, type PickedLocation } from "@/components/LocationPicker";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { CATEGORY_LABEL, SEVERITY_LABEL, STATUS_SHORT_LABEL } from "@/lib/status";
-import type { IssueCategory, IssueSeverity, IssueStatus } from "@/lib/types";
+import type { IssueCategory, IssueSeverity } from "@/lib/types";
+
+import { api } from "@convex/_generated/api";
+import type { Doc } from "@convex/_generated/dataModel";
 
 import styles from "../resident.module.css";
 
@@ -22,14 +26,6 @@ interface AiSuggestion {
   suggestedDepartment: string | null;
 }
 
-interface SimilarIssue {
-  id: string;
-  tracking_id: string;
-  description: string;
-  status: IssueStatus;
-  distance_m: number;
-}
-
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -37,6 +33,14 @@ function fileToDataUrl(file: File): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+async function sha256Hex(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 const CATEGORIES: { key: IssueCategory; glyph: string }[] = [
@@ -55,6 +59,12 @@ const SEVERITIES: { key: IssueSeverity; label: string }[] = [
 
 export function ReportComposer() {
   const router = useRouter();
+  const { user } = useUser();
+  const convex = useConvex();
+  const createIssue = useMutation(api.issues.create);
+  const generateUploadUrl = useMutation(api.issueMedia.generateUploadUrl);
+  const saveMedia = useMutation(api.issueMedia.save);
+  const recordAssessment = useMutation(api.aiAssessments.record);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [category, setCategory] = useState<IssueCategory | null>(null);
@@ -73,28 +83,23 @@ export function ReportComposer() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiUsed, setAiUsed] = useState(false);
 
-  const [similarIssues, setSimilarIssues] = useState<SimilarIssue[]>([]);
+  const [similarIssues, setSimilarIssues] = useState<Doc<"issues">[]>([]);
 
   const handleLocation = useCallback((next: PickedLocation) => setLocation(next), []);
 
-  // Nearby-similar-report check: cheap (DB-only RPC), so it runs automatically
-  // once a category and a pinned location both exist, debounced against
-  // repeated map drags. Rendering is gated on category+location below, so a
-  // stale list from a previous combination never has to be reset here.
   useEffect(() => {
-    const client = supabase;
-    if (!client || !category || !location) return;
+    if (!category || !location) return;
     const timeout = setTimeout(async () => {
-      const { data } = await client.rpc("find_nearby_similar_issues", {
-        p_latitude: location.latitude,
-        p_longitude: location.longitude,
-        p_category: category,
-        p_radius_m: 200,
+      const results = await convex.query(api.issues.findNearbySimilar, {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        category,
+        radiusM: 200,
       });
-      setSimilarIssues((data as SimilarIssue[] | null) ?? []);
+      setSimilarIssues(results);
     }, 600);
     return () => clearTimeout(timeout);
-  }, [category, location]);
+  }, [category, location, convex]);
 
   const handleAnalyzeWithAi = async () => {
     if (!description.trim() && !photoFile) {
@@ -148,102 +153,63 @@ export function ReportComposer() {
     });
   };
 
-  async function sha256Hex(file: File): Promise<string> {
-    const buffer = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest("SHA-256", buffer);
-    return Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
-
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
     if (!category) return setError("Choose a category.");
-    if (description.trim().length < 15)
-      return setError("Describe the issue in at least 15 characters.");
+    if (description.trim().length < 15) return setError("Describe the issue in at least 15 characters.");
     if (!location) return setError("Set the location on the map.");
+    if (!user) return setError("Your session expired — please sign in again.");
 
     setError(null);
     setSubmitting(true);
 
-    if (!supabase || !isSupabaseConfigured) {
-      setError("Reporting isn't available in preview mode — Supabase isn't configured.");
-      setSubmitting(false);
-      return;
-    }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setError("Your session expired — please sign in again.");
-      setSubmitting(false);
-      return;
-    }
-
-    let storageKey: string | null = null;
-    let mimeType: string | null = null;
-    let checksum: string | null = null;
-
-    if (photoFile) {
-      storageKey = `${user.id}/${Date.now()}-${photoFile.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("issue-media")
-        .upload(storageKey, photoFile, { contentType: photoFile.type });
-      if (uploadError) {
-        setError(`Photo upload failed: ${uploadError.message}`);
-        setSubmitting(false);
-        return;
-      }
-      mimeType = photoFile.type;
-      checksum = await sha256Hex(photoFile);
-    }
-
-    const { data: rpcData, error: rpcError } = await supabase
-      .rpc("create_issue", {
-        p_category: category,
-        p_description: description.trim(),
-        p_severity: severity,
-        p_latitude: location.latitude,
-        p_longitude: location.longitude,
-        p_accuracy_m: null,
-        p_neighborhood: landmark.trim() || null,
-        p_storage_key: storageKey,
-        p_mime_type: mimeType,
-        p_checksum: checksum,
-      })
-      .single();
-
-    const data = rpcData as { id: string; tracking_id: string } | null;
-
-    if (rpcError || !data) {
-      setError(rpcError?.message ?? "Could not submit the report. Please try again.");
-      setSubmitting(false);
-      return;
-    }
-
-    if (aiSuggestion) {
-      await supabase.rpc("record_ai_assessment", {
-        p_issue_id: data.id,
-        p_category: aiSuggestion.category,
-        p_severity: aiSuggestion.severity,
-        p_confidence: aiSuggestion.confidence,
-        p_reasoning: aiSuggestion.reasoning,
-        p_provider: aiSuggestion.source === "heuristic" ? "heuristic" : "groq",
-        p_model: aiSuggestion.source === "vision" ? "llama-4-scout-17b-16e-instruct" : "llama-3.1-8b-instant",
+    try {
+      const { id: issueId, trackingId } = await createIssue({
+        category,
+        description: description.trim(),
+        severity,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        neighborhood: landmark.trim() || undefined,
       });
+
+      if (photoFile) {
+        const uploadUrl = await generateUploadUrl();
+        const uploadRes = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": photoFile.type },
+          body: photoFile,
+        });
+        const { storageId } = await uploadRes.json();
+        const checksum = await sha256Hex(photoFile);
+        await saveMedia({ issueId, storageId, mimeType: photoFile.type, checksum, sizeBytes: photoFile.size });
+      }
+
+      if (aiSuggestion) {
+        await recordAssessment({
+          issueId,
+          category: aiSuggestion.category,
+          severity: aiSuggestion.severity,
+          confidence: aiSuggestion.confidence,
+          reasoning: aiSuggestion.reasoning,
+          provider: aiSuggestion.source === "heuristic" ? "heuristic" : "groq",
+          model: aiSuggestion.source === "vision" ? "llama-4-scout-17b-16e-instruct" : "llama-3.1-8b-instant",
+        });
+      }
+
+      const params = new URLSearchParams({
+        trackingId,
+        category,
+        severity,
+        lat: location.latitude.toFixed(5),
+        lng: location.longitude.toFixed(5),
+      });
+      router.push(`/app/report/submitted?${params.toString()}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit the report. Please try again.");
+      setSubmitting(false);
     }
-
-    const params = new URLSearchParams({
-      trackingId: data.tracking_id,
-      category,
-      severity,
-      lat: location.latitude.toFixed(5),
-      lng: location.longitude.toFixed(5),
-    });
-
-    router.push(`/app/report/submitted?${params.toString()}`);
   };
 
   return (
@@ -277,7 +243,6 @@ export function ReportComposer() {
         <div className={styles.photoDrop}>
           {photoUrl ? (
             <>
-              {/* Local object URL preview; next/image is unnecessary here. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={photoUrl} alt="Selected issue photo" className={styles.photoPreview} />
               <p className={styles.hint}>{photoName}</p>
@@ -365,18 +330,18 @@ export function ReportComposer() {
           <Card tone="muted" style={{ marginTop: "var(--space-3)" }}>
             <p className={styles.hint} style={{ margin: "0 0 var(--space-2)" }}>
               {similarIssues.length === 1 ? "A similar report already exists" : "Similar reports already exist"}{" "}
-              nearby — consider confirming one of these instead of filing a new one.
+              nearby — take a look before filing a new one.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
               {similarIssues.map((s) => (
                 <Link
-                  key={s.id}
-                  href={`/issues/${s.id}`}
+                  key={s._id}
+                  href={`/issues/${s._id}`}
                   target="_blank"
                   className={styles.hint}
                   style={{ textDecoration: "underline" }}
                 >
-                  {s.tracking_id} · {STATUS_SHORT_LABEL[s.status]} · ~{Math.round(s.distance_m)}m away — {s.description.slice(0, 80)}
+                  {s.trackingId} · {STATUS_SHORT_LABEL[s.status]} — {s.description.slice(0, 80)}
                   {s.description.length > 80 ? "…" : ""}
                 </Link>
               ))}

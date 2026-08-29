@@ -1,79 +1,51 @@
+"use client";
+
+import { useUser } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, useParams } from "next/navigation";
 
 import { Card } from "@civicfix/ui-web";
 
 import { IssueChat } from "@/components/IssueChat";
 import { StatusPill } from "@/components/StatusPill";
-import {
-  mapIssueRow,
-  type RawIssueEventRow,
-  type RawIssueRow,
-} from "@/lib/issue-mappers";
 import { CATEGORY_LABEL, SEVERITY_LABEL, STATUS_LABEL, STATUS_SHORT_LABEL } from "@/lib/status";
-import { createServerSupabase, getSessionProfile } from "@/lib/supabase-server";
+
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import type { IssueStatus } from "@/lib/types";
 
 import styles from "../../resident.module.css";
 
 // The happy path a resident is walked through. Stages already reached come from
 // the issue's own events; the rest are shown dimmed as "what happens next".
-const EXPECTED: IssueStatus[] = [
-  "reported",
-  "triaged",
-  "assigned",
-  "in_progress",
-  "pending_verification",
-  "resolved",
-];
+const EXPECTED: IssueStatus[] = ["reported", "triaged", "assigned", "in_progress", "pending_verification", "resolved"];
 
-export default async function ResidentReportDetailPage({
-  params,
-}: PageProps<"/app/reports/[id]">) {
-  const { id } = await params;
+export default function ResidentReportDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useUser();
+  const issue = useQuery(api.issues.getById, { issueId: id as Id<"issues"> });
 
-  const session = await getSessionProfile();
-  const supabase = await createServerSupabase();
-
-  if (!supabase || !session) notFound();
-
-  // Scoped to the signed-in reporter — this is "my reports", not the public
-  // issue detail page, so it should 404 rather than reveal someone else's
-  // report even if that report also happens to be public.
-  const { data: row } = await supabase
-    .from("issues")
-    .select("*, departments(name)")
-    .eq("id", id)
-    .eq("reporter_id", session.userId)
-    .maybeSingle();
-
-  if (!row) notFound();
-
-  const { data: eventRows } = await supabase
-    .from("issue_events")
-    .select("id, status, note, created_at")
-    .eq("issue_id", id)
-    .order("created_at", { ascending: true });
-
-  const issue = mapIssueRow(row as RawIssueRow, (eventRows as RawIssueEventRow[] | null) ?? []);
+  if (issue === undefined) return null;
+  // getById already scopes visibility (own issue, or staff, or public) —
+  // nothing further to check here.
+  if (!issue) notFound();
 
   const reached = new Set(issue.events.map((e) => e.status));
   const upcoming = EXPECTED.filter((s) => !reached.has(s));
+  const sortedEvents = [...issue.events].sort((a, b) => a.createdAt - b.createdAt);
 
   return (
     <div>
       <div className={styles.pageHeader}>
-        <Link
-          href="/app/reports"
-          style={{ fontSize: "var(--font-size-xs)", color: "var(--color-muted-foreground)" }}
-        >
+        <Link href="/app/reports" style={{ fontSize: "var(--font-size-xs)", color: "var(--color-muted-foreground)" }}>
           ← All my reports
         </Link>
         <h1 className={styles.title} style={{ marginTop: "var(--space-3)" }}>
           {issue.trackingId}
         </h1>
         <p className={styles.subtitle}>
-          {CATEGORY_LABEL[issue.category]} · {issue.neighborhood}
+          {CATEGORY_LABEL[issue.category]} · {issue.neighborhood ?? "Unspecified"}
         </p>
         <div style={{ marginTop: "var(--space-3)" }}>
           <StatusPill status={issue.status} />
@@ -90,20 +62,18 @@ export default async function ResidentReportDetailPage({
           <Card>
             <h2 className={styles.sectionTitle}>Status trail</h2>
 
-            {issue.events.map((event, index) => (
-              <div key={event.id} className={styles.timelineRow}>
+            {sortedEvents.map((event, index) => (
+              <div key={event._id} className={styles.timelineRow}>
                 <div className={styles.timelineDotCol}>
                   <span className={styles.timelineDot} />
-                  {index < issue.events.length - 1 || upcoming.length > 0 ? (
+                  {index < sortedEvents.length - 1 || upcoming.length > 0 ? (
                     <span className={styles.timelineLine} />
                   ) : null}
                 </div>
                 <div className={styles.timelineBody}>
                   <p className={styles.timelineStatus}>{STATUS_SHORT_LABEL[event.status]}</p>
                   {event.note ? <p className={styles.timelineNote}>{event.note}</p> : null}
-                  <p className={styles.timelineDate}>
-                    {new Date(event.createdAt).toLocaleString()}
-                  </p>
+                  <p className={styles.timelineDate}>{new Date(event.createdAt).toLocaleString()}</p>
                 </div>
               </div>
             ))}
@@ -115,10 +85,7 @@ export default async function ResidentReportDetailPage({
                   {index < upcoming.length - 1 ? <span className={styles.timelineLine} /> : null}
                 </div>
                 <div className={styles.timelineBody}>
-                  <p
-                    className={styles.timelineStatus}
-                    style={{ color: "var(--color-dim-foreground)" }}
-                  >
+                  <p className={styles.timelineStatus} style={{ color: "var(--color-dim-foreground)" }}>
                     {STATUS_SHORT_LABEL[status]}
                   </p>
                   <p className={styles.timelineNote}>Not yet reached</p>
@@ -141,7 +108,7 @@ export default async function ResidentReportDetailPage({
             </div>
             <div className={styles.sideStat}>
               <span className={styles.sideStatLabel}>Neighborhood</span>
-              <span>{issue.neighborhood}</span>
+              <span>{issue.neighborhood ?? "Unspecified"}</span>
             </div>
             <div className={styles.sideStat}>
               <span className={styles.sideStatLabel}>Reported</span>
@@ -153,9 +120,11 @@ export default async function ResidentReportDetailPage({
             </div>
           </Card>
 
-          <div style={{ marginTop: "var(--space-4)" }}>
-            <IssueChat issueId={issue.id} currentUserId={session.userId} senderRole="resident" />
-          </div>
+          {user ? (
+            <div style={{ marginTop: "var(--space-4)" }}>
+              <IssueChat issueId={issue._id} senderRole="resident" />
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

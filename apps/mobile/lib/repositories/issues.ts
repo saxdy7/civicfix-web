@@ -1,169 +1,103 @@
-import { decode } from "base64-arraybuffer";
 import * as Crypto from "expo-crypto";
 
 import { DEMO_ISSUES } from "../demo-data";
-import { supabase } from "../supabase";
-import type { Issue, IssueCategory, IssueEvent, IssueSeverity, IssueStatus } from "../types";
+import { convexClient, convexErrorMessage } from "../convex-client";
+import type { Issue, IssueCategory, IssueEvent, IssueSeverity } from "../types";
 
-interface RawIssueRow {
-  id: string;
-  tracking_id: string;
-  category: IssueCategory;
-  status: IssueStatus;
-  severity: IssueSeverity;
-  description: string;
-  neighborhood: string | null;
-  location: unknown;
-  created_at: string;
-  updated_at: string;
-  reporter_id?: string | null;
+import { api } from "../../../../convex/_generated/api";
+import type { Doc, Id } from "../../../../convex/_generated/dataModel";
+
+function mapEvent(row: Doc<"issueEvents">): IssueEvent {
+  return { id: row._id, status: row.status, note: row.note, createdAt: new Date(row.createdAt).toISOString() };
 }
 
-interface RawEventRow {
-  id: string;
-  issue_id?: string;
-  status: IssueStatus;
-  note: string | null;
-  created_at: string;
-}
-
-const ISSUE_COLUMNS =
-  "id, tracking_id, category, status, severity, description, neighborhood, location, created_at, updated_at";
-const ISSUE_COLUMNS_WITH_REPORTER = `${ISSUE_COLUMNS}, reporter_id`;
-
-function parseLocation(raw: unknown): { latitude: number; longitude: number } {
-  if (raw && typeof raw === "object" && Array.isArray((raw as { coordinates?: unknown }).coordinates)) {
-    const [lng, lat] = (raw as { coordinates: [number, number] }).coordinates;
-    return { latitude: lat, longitude: lng };
-  }
-  return { latitude: 0, longitude: 0 };
-}
-
-function mapEvent(row: RawEventRow): IssueEvent {
-  return { id: row.id, status: row.status, note: row.note ?? undefined, createdAt: row.created_at };
-}
-
-function mapIssue(row: RawIssueRow, events: RawEventRow[]): Issue {
-  const { latitude, longitude } = parseLocation(row.location);
+function mapIssue(row: Doc<"issues">, events: Doc<"issueEvents">[] = []): Issue {
   return {
-    id: row.id,
-    trackingId: row.tracking_id,
+    id: row._id,
+    trackingId: row.trackingId,
     category: row.category,
     status: row.status,
     severity: row.severity,
     description: row.description,
     neighborhood: row.neighborhood ?? "Unspecified",
-    latitude,
-    longitude,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
     events: events.map(mapEvent).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-    reporterId: row.reporter_id ?? undefined,
+    reporterId: row.reporterId,
   };
 }
 
 /** The signed-in citizen's own reports, newest first. */
-export async function fetchMyIssues(userId: string): Promise<Issue[]> {
-  if (!supabase) return DEMO_ISSUES;
-
-  const { data, error } = await supabase
-    .from("issues")
-    .select(ISSUE_COLUMNS)
-    .eq("reporter_id", userId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-
-  if (error || !data || data.length === 0) return [];
-
-  const ids = data.map((row) => row.id);
-  const { data: eventRows } = await supabase
-    .from("issue_events")
-    .select("id, issue_id, status, note, created_at")
-    .in("issue_id", ids)
-    .order("created_at", { ascending: true });
-
-  return data.map((row) =>
-    mapIssue(
-      row as RawIssueRow,
-      (eventRows ?? []).filter((e) => e.issue_id === row.id),
-    ),
-  );
+export async function fetchMyIssues(_userId: string): Promise<Issue[]> {
+  if (!convexClient) return DEMO_ISSUES;
+  const rows = await convexClient.query(api.issues.list, { onlyMine: true });
+  return rows.map((row) => mapIssue(row));
 }
 
-/** A single report the signed-in citizen owns — never someone else's, even if public. */
-export async function fetchMyIssueById(id: string, userId: string): Promise<Issue | null> {
-  if (!supabase) return DEMO_ISSUES.find((issue) => issue.id === id) ?? null;
-
-  const { data: row } = await supabase
-    .from("issues")
-    .select(ISSUE_COLUMNS)
-    .eq("id", id)
-    .eq("reporter_id", userId)
-    .maybeSingle();
-
-  if (!row) return null;
-
-  const { data: eventRows } = await supabase
-    .from("issue_events")
-    .select("id, status, note, created_at")
-    .eq("issue_id", id)
-    .order("created_at", { ascending: true });
-
-  return mapIssue(row as RawIssueRow, (eventRows ?? []) as RawEventRow[]);
+/** A single report the signed-in citizen owns — never someone else's, even if public (Convex enforces this server-side). */
+export async function fetchMyIssueById(id: string, _userId: string): Promise<Issue | null> {
+  if (!convexClient) return DEMO_ISSUES.find((issue) => issue.id === id) ?? null;
+  try {
+    const doc = await convexClient.query(api.issues.getById, { issueId: id as Id<"issues"> });
+    if (!doc) return null;
+    return mapIssue(doc, doc.events);
+  } catch {
+    return null;
+  }
 }
 
 /** Public issues for the home tab's "nearby reports" list. */
 export async function fetchNearbyPublicIssues(limit = 20): Promise<Issue[]> {
-  if (!supabase) return DEMO_ISSUES;
-
-  const { data } = await supabase
-    .from("issues")
-    .select(ISSUE_COLUMNS_WITH_REPORTER)
-    .eq("is_public", true)
-    .is("deleted_at", null)
-    .neq("status", "duplicate")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  return (data ?? []).map((row) => mapIssue(row as RawIssueRow, []));
-}
-
-/** Issue ids the signed-in user has already confirmed, for toggling UI state. */
-export async function fetchMyConfirmedIssueIds(userId: string): Promise<Set<string>> {
-  if (!supabase) return new Set();
-  const { data } = await supabase.from("confirmations").select("issue_id").eq("user_id", userId);
-  return new Set((data ?? []).map((row) => row.issue_id as string));
-}
-
-/** A citizen confirming a neighbor's report — RLS blocks confirming your own. */
-export async function confirmIssue(issueId: string, userId: string): Promise<{ error: string | null }> {
-  if (!supabase) return { error: null };
-  const { error } = await supabase.from("confirmations").insert({ issue_id: issueId, user_id: userId });
-  return { error: error ? error.message : null };
+  if (!convexClient) return DEMO_ISSUES;
+  const rows = await convexClient.query(api.issues.list, { limit: limit * 2 });
+  // Always public-only here, regardless of the viewer's own role — a field
+  // worker's Home tab should see the same "nearby civic activity" a citizen
+  // would, not every non-public row their staff access happens to unlock.
+  return rows
+    .filter((row) => row.isPublic && row.status !== "duplicate")
+    .slice(0, limit)
+    .map((row) => mapIssue(row));
 }
 
 export interface CapturedPhoto {
+  uri: string;
   base64: string;
-  contentType: string;
-  extension: string;
+  mimeType: string;
 }
 
-/** Uploads to the same private `issue-media` bucket the web app writes to. */
-export async function uploadIssuePhoto(
-  userId: string,
-  photo: CapturedPhoto,
-): Promise<{ storageKey: string; checksum: string } | { error: string }> {
-  if (!supabase) return { error: "Supabase is not configured." };
+/**
+ * Uploads directly to Convex file storage: get a one-time upload URL, POST
+ * the file bytes to it, then link the resulting storage id to the issue.
+ * Unlike the old Supabase flow, the issue must already exist — Convex's
+ * issueMedia.save() requires a real issueId, so this always runs *after*
+ * createIssue(), never before.
+ */
+export async function uploadIssuePhoto(issueId: string, photo: CapturedPhoto): Promise<{ error: string | null }> {
+  if (!convexClient) return { error: null };
+  try {
+    const uploadUrl = await convexClient.mutation(api.issueMedia.generateUploadUrl, {});
+    const blob = await (await fetch(photo.uri)).blob();
+    const uploadRes = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": photo.mimeType },
+      body: blob,
+    });
+    if (!uploadRes.ok) return { error: "Could not upload the photo." };
+    const { storageId } = (await uploadRes.json()) as { storageId: Id<"_storage"> };
 
-  const storageKey = `${userId}/${Date.now()}.${photo.extension}`;
-  const { error } = await supabase.storage
-    .from("issue-media")
-    .upload(storageKey, decode(photo.base64), { contentType: photo.contentType });
-
-  if (error) return { error: error.message };
-
-  const checksum = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, photo.base64);
-  return { storageKey, checksum };
+    const checksum = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, photo.base64);
+    await convexClient.mutation(api.issueMedia.save, {
+      issueId: issueId as Id<"issues">,
+      storageId,
+      mimeType: photo.mimeType,
+      checksum,
+    });
+    return { error: null };
+  } catch (err) {
+    return { error: convexErrorMessage(err) };
+  }
 }
 
 export interface CreateIssueInput {
@@ -173,37 +107,23 @@ export interface CreateIssueInput {
   latitude: number;
   longitude: number;
   neighborhood?: string;
-  storageKey?: string | null;
-  mimeType?: string | null;
-  checksum?: string | null;
 }
 
 /**
- * Always goes through the `create_issue` RPC (same one the website uses) so
- * the tracking ID is generated server-side — the device never invents one.
+ * Always goes through the issues.create mutation (same one the website
+ * uses) so the tracking ID is generated server-side — the device never
+ * invents one.
  */
 export async function createIssue(
   input: CreateIssueInput,
-): Promise<{ trackingId: string } | { error: string }> {
-  if (!supabase) {
-    return { error: "Reporting isn't available in demo mode — Supabase isn't configured." };
+): Promise<{ issueId: string; trackingId: string } | { error: string }> {
+  if (!convexClient) {
+    return { error: "Reporting isn't available in demo mode — Convex isn't configured." };
   }
-
-  const { data, error } = await supabase
-    .rpc("create_issue", {
-      p_category: input.category,
-      p_description: input.description,
-      p_severity: input.severity,
-      p_latitude: input.latitude,
-      p_longitude: input.longitude,
-      p_accuracy_m: null,
-      p_neighborhood: input.neighborhood ?? null,
-      p_storage_key: input.storageKey ?? null,
-      p_mime_type: input.mimeType ?? null,
-      p_checksum: input.checksum ?? null,
-    })
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Could not submit the report." };
-  return { trackingId: (data as { tracking_id: string }).tracking_id };
+  try {
+    const result = await convexClient.mutation(api.issues.create, input);
+    return { issueId: result.id, trackingId: result.trackingId };
+  } catch (err) {
+    return { error: convexErrorMessage(err) };
+  }
 }

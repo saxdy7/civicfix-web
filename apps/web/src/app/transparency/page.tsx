@@ -1,70 +1,80 @@
+import { fetchQuery } from "convex/nextjs";
 import { Card } from "@civicfix/ui-web";
 
 import { PublicShell } from "@/components/PublicShell";
 import { getPlatformStats } from "@/lib/platform-stats";
 import { CATEGORY_LABEL } from "@/lib/status";
-import { createServerSupabase } from "@/lib/supabase-server";
 import type { IssueCategory } from "@/lib/types";
+
+import { api } from "@convex/_generated/api";
+import type { Doc } from "@convex/_generated/dataModel";
 
 import styles from "./page.module.css";
 
 const CATEGORIES: IssueCategory[] = ["pothole", "garbage", "streetlight", "other"];
+const HOTSPOT_GRID = 0.003; // ~300m at the equator — same grid-snap the admin analytics dashboard uses
 
-interface HotspotRow {
+interface Hotspot {
   category: IssueCategory;
-  report_count: number;
-  neighborhood: string | null;
+  neighborhood: string;
+  reportCount: number;
+}
+
+/** Groups nearby same-category reports into approximate hotspots — the Convex equivalent of the retired PostGIS `recurring_hotspots` view. */
+function findHotspots(issues: Doc<"issues">[]): Hotspot[] {
+  const buckets = new Map<string, Doc<"issues">[]>();
+  for (const issue of issues) {
+    const key = `${issue.category}:${Math.round(issue.latitude / HOTSPOT_GRID)}:${Math.round(issue.longitude / HOTSPOT_GRID)}`;
+    const bucket = buckets.get(key) ?? [];
+    bucket.push(issue);
+    buckets.set(key, bucket);
+  }
+  return Array.from(buckets.values())
+    .filter((bucket) => bucket.length >= 3)
+    .map((bucket) => ({
+      category: bucket[0].category,
+      neighborhood: bucket[0].neighborhood ?? "Unknown",
+      reportCount: bucket.length,
+    }))
+    .sort((a, b) => b.reportCount - a.reportCount)
+    .slice(0, 6);
 }
 
 async function loadTransparencyData() {
-  const supabase = await createServerSupabase();
-  const stats = await getPlatformStats();
-
-  if (!supabase) {
-    return { stats, categoryCounts: [], departmentPerformance: [], hotspots: [] };
-  }
-
-  const [{ data: issueRows }, { data: departmentRows }, { data: hotspotRows }] = await Promise.all([
-    supabase.from("issues").select("category, status").eq("is_public", true).is("deleted_at", null),
-    supabase.from("departments").select("id, name"),
-    supabase.from("recurring_hotspots").select("category, report_count, neighborhood").limit(6),
+  // No token passed — issues.list already restricts an anonymous caller to
+  // public, non-deleted rows server-side (see convex/issues.ts).
+  const [stats, publicIssues, departments] = await Promise.all([
+    getPlatformStats(),
+    fetchQuery(api.issues.list, {}),
+    fetchQuery(api.departments.list, {}),
   ]);
 
-  const issues = (issueRows ?? []) as { category: IssueCategory; status: string }[];
   const categoryCounts = CATEGORIES.map((cat) => ({
     key: cat,
     label: CATEGORY_LABEL[cat],
-    total: issues.filter((i) => i.category === cat).length,
-    resolved: issues.filter((i) => i.category === cat && i.status === "resolved").length,
+    total: publicIssues.filter((i) => i.category === cat).length,
+    resolved: publicIssues.filter((i) => i.category === cat && i.status === "resolved").length,
   }));
   const maxCategoryCount = Math.max(1, ...categoryCounts.map((c) => c.total));
 
-  const departments = (departmentRows ?? []) as { id: string; name: string }[];
-  const departmentPerformance = await Promise.all(
-    departments.map(async (dept) => {
-      const [{ count: total }, { count: resolved }] = await Promise.all([
-        supabase.from("issues").select("id", { count: "exact", head: true }).eq("department_id", dept.id).eq("is_public", true),
-        supabase
-          .from("issues")
-          .select("id", { count: "exact", head: true })
-          .eq("department_id", dept.id)
-          .eq("is_public", true)
-          .eq("status", "resolved"),
-      ]);
+  const departmentPerformance = departments
+    .map((dept) => {
+      const deptIssues = publicIssues.filter((i) => i.departmentId === dept._id);
+      const resolved = deptIssues.filter((i) => i.status === "resolved").length;
       return {
         name: dept.name,
-        total: total ?? 0,
-        rate: total ? Math.round(((resolved ?? 0) / total) * 100) : null,
+        total: deptIssues.length,
+        rate: deptIssues.length > 0 ? Math.round((resolved / deptIssues.length) * 100) : null,
       };
-    }),
-  );
+    })
+    .filter((d) => d.total > 0);
 
   return {
     stats,
     categoryCounts,
     maxCategoryCount,
-    departmentPerformance: departmentPerformance.filter((d) => d.total > 0),
-    hotspots: (hotspotRows ?? []) as HotspotRow[],
+    departmentPerformance,
+    hotspots: findHotspots(publicIssues),
   };
 }
 
@@ -102,7 +112,7 @@ export default async function TransparencyPage() {
 
       <h2 className={styles.sectionTitle}>Reports by category</h2>
       <Card style={{ marginBottom: "var(--space-6)" }}>
-        {categoryCounts && categoryCounts.length > 0 && maxCategoryCount ? (
+        {categoryCounts.length > 0 && maxCategoryCount ? (
           categoryCounts.map((item) => (
             <div key={item.key} className={styles.barRow}>
               <span>{item.label}</span>
@@ -168,8 +178,8 @@ export default async function TransparencyPage() {
                 {hotspots.map((h, i) => (
                   <tr key={`${h.category}-${h.neighborhood}-${i}`}>
                     <td>{CATEGORY_LABEL[h.category]}</td>
-                    <td>{h.neighborhood ?? "Unknown"}</td>
-                    <td>{h.report_count}</td>
+                    <td>{h.neighborhood}</td>
+                    <td>{h.reportCount}</td>
                   </tr>
                 ))}
               </tbody>
