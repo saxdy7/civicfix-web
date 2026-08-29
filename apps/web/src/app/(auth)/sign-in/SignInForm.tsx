@@ -58,20 +58,15 @@ export function SignInForm() {
     const userId = data.user?.id;
 
     if (userId) {
-      const { data: roleRows } = await supabase
+      const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", userId);
 
-      const roles = (roleRows ?? []).map((r) => r.role as string);
-      // Desk roles get the admin console; a field-worker-only account has no
-      // web UI built for it at all — that work happens on mobile — so it
-      // gets a page saying so instead of a console with nothing usable in it.
-      if (roles.some((r) => ["department_manager", "administrator", "auditor"].includes(r))) {
-        destination = "/admin";
-      } else if (roles.includes("field_worker")) {
-        destination = "/staff/mobile-only";
-      }
+      const isStaff = (roles ?? []).some((r: { role: string }) =>
+        ["field_worker", "department_manager", "administrator", "auditor"].includes(r.role),
+      );
+      if (isStaff) destination = "/admin";
     }
 
     // Middleware re-checks role on every request regardless, so honoring an
