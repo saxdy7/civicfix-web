@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useCivicBot } from "./useCivicBot";
+import { FormattedMessage } from "./FormattedMessage";
 import { CATEGORY_LABEL, STATUS_LABEL } from "@/lib/status";
 import {
   IconAiAssistant,
@@ -159,7 +160,7 @@ export function CivicBot({ className, onClose, isFullPage }: CivicBotProps) {
             }`}
           >
             <div className={styles.bubbleContent}>
-              <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+              <FormattedMessage text={m.text} isUser={m.sender === "user"} />
 
               {/* Draft Report Card */}
               {m.type === "report_draft" && m.data?.draft && (

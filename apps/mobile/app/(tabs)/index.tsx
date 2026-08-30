@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -262,32 +262,43 @@ export default function Home() {
         {/* ------------------------------------------------------------- */}
         {selectedFilter === "dashboard" && (
           <>
-            {/* "Progress in Motion" Hero Card */}
-            <View style={[styles.progressHeroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {/* "Progress in Motion" Hero Card (Live Real-Time SLA & Momentum Tracking) */}
+            <Pressable
+              style={[styles.progressHeroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={() => setSelectedFilter("progress")}
+            >
               <View style={styles.progressTopRow}>
                 <View style={styles.progressTitleRow}>
                   <Ionicons name="pie-chart-outline" size={17} color={colors.foreground} />
                   <Text style={[styles.progressCardTitle, { color: colors.foreground }]}>Progress in motion</Text>
+                  {liveTimeString ? (
+                    <View style={styles.liveClockBadge}>
+                      <View style={styles.livePulseDot} />
+                      <Text style={styles.liveClockText}>{liveTimeString}</Text>
+                    </View>
+                  ) : null}
                 </View>
                 <View style={styles.percentBadge}>
-                  <Text style={styles.percentBadgeText}>79% complete</Text>
+                  <Text style={styles.percentBadgeText}>{dynamicCompletionPct}% on time</Text>
                 </View>
               </View>
 
               <View style={styles.progressSubRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.momentumLabel, { color: colors.mutedForeground }]}>Momentum</Text>
-                  <Text style={[styles.momentumText, { color: colors.foreground }]}>You're on a roll! 4 days strong.</Text>
+                  <Text style={[styles.momentumLabel, { color: colors.mutedForeground }]}>MOMENTUM</Text>
+                  <Text style={[styles.momentumText, { color: colors.foreground }]}>
+                    You're on a roll! {streakDays} days active streak.
+                  </Text>
                 </View>
 
-                {/* Segmented LED Green Bars */}
+                {/* Segmented LED Green Bars (Real-Time Lit) */}
                 <View style={styles.segmentedBar}>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((bar) => (
                     <View
                       key={bar}
                       style={[
                         styles.segmentItem,
-                        bar <= 8
+                        bar <= filledSegments
                           ? styles.segmentFilled
                           : [styles.segmentEmpty, { backgroundColor: colors.surfaceMuted }],
                       ]}
@@ -295,7 +306,7 @@ export default function Home() {
                   ))}
                 </View>
               </View>
-            </View>
+            </Pressable>
 
             {/* Horizontal Active Cards */}
             <View style={styles.sectionWrap}>
@@ -876,6 +887,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  liveClockBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: radius.pill,
+  },
+  livePulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#22c55e",
+  },
+  liveClockText: {
+    fontSize: 10,
+    fontFamily: fontFamily.bold,
+    color: "#22c55e",
   },
   progressCardTitle: {
     fontSize: 15,

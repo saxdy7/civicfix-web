@@ -5,7 +5,6 @@ import { useQuery } from "convex/react";
 
 import { Card } from "@civicfix/ui-web";
 
-import { ApiStatus } from "@/components/ApiStatus";
 import { StatusPill } from "@/components/StatusPill";
 import { isOverdue } from "@/lib/admin-mappers";
 import { CATEGORY_LABEL } from "@/lib/status";
@@ -64,11 +63,6 @@ export default function AdminDashboardPage() {
               </span>
             </Card>
           </div>
-
-          <h2 className={styles.sectionTitle}>Backend connectivity</h2>
-          <Card style={{ marginBottom: "var(--space-6)" }}>
-            <ApiStatus />
-          </Card>
 
           <h2 className={styles.sectionTitle}>Recent activity</h2>
           <Card>
