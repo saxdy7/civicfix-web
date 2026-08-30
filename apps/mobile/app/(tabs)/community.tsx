@@ -156,7 +156,7 @@ export default function Community() {
   const load = useCallback(async () => {
     const [items, votes] = await Promise.all([
       fetchCommunityFeed(),
-      user ? fetchMyVotes(user.id) : Promise.resolve({}),
+      fetchMyVotes(user?.id),
     ]);
     setFeed(items);
     setMyVotes(votes);
