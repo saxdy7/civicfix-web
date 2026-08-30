@@ -21,8 +21,9 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { useAuth } from "../../lib/auth-context";
+import { useTheme } from "../../lib/theme-context";
 import { createIssue, fetchMyIssues, uploadIssuePhoto } from "../../lib/repositories/issues";
-import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
+import { fontFamily, fontSize, radius, spacing } from "../../lib/theme";
 import { processCivicAssistantQuery, type AIResponse } from "../../lib/ai-assistant-engine";
 import {
   deleteChatSession,
@@ -60,6 +61,7 @@ function formatTime(timestamp: number): string {
 export default function AssistantScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors, isDark } = useTheme();
   const scrollViewRef = useRef<ScrollView>(null);
 
   const [input, setInput] = useState("");
@@ -156,7 +158,6 @@ export default function AssistantScreen() {
     }
   };
 
-  // Start a brand new conversation
   const handleStartNewChat = () => {
     const newId = `session-${Date.now()}`;
     setCurrentSessionId(newId);
@@ -166,14 +167,12 @@ export default function AssistantScreen() {
     setShowHistoryDrawer(false);
   };
 
-  // Select past conversation from history
   const handleSelectSession = (session: ChatSession) => {
     setCurrentSessionId(session.id);
     setMessages(session.messages);
     setShowHistoryDrawer(false);
   };
 
-  // Delete conversation from history
   const handleDeleteSession = async (sessionId: string) => {
     const updated = await deleteChatSession(sessionId);
     setSessions(updated);
@@ -225,7 +224,6 @@ export default function AssistantScreen() {
       const finalMessages = [...updatedMessages, botReply];
       setMessages(finalMessages);
 
-      // Auto-save this conversation thread in persistence
       const sessionTitle =
         sessions.find((s) => s.id === currentSessionId)?.title ||
         generateChatTitle(userMsg.text);
@@ -358,64 +356,60 @@ export default function AssistantScreen() {
   const displayName = user?.name ? user.name.split(" ")[0] : "Resident";
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={["top"]}>
       <KeyboardAvoidingView
-        style={styles.keyboardContainer}
+        style={[styles.keyboardContainer, { backgroundColor: colors.background }]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
       >
-        {/* 1. TOP HEADER (Exact layout as reference image) */}
-        <View style={styles.topNavHeader}>
-          {/* Hamburger Menu -> Opens Chat History Drawer */}
+        {/* 1. TOP HEADER */}
+        <View style={[styles.topNavHeader, { borderBottomColor: colors.border }]}>
           <Pressable
-            style={styles.menuIconBtn}
+            style={[styles.menuIconBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => {
               loadHistory();
               setShowHistoryDrawer(true);
             }}
           >
-            <Ionicons name="menu-outline" size={20} color="#ffffff" />
+            <Ionicons name="menu-outline" size={20} color={colors.foreground} />
           </Pressable>
 
-          {/* Model Status Badge */}
           <Pressable
-            style={styles.planBadgeContainer}
+            style={[styles.planBadgeContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setShowModelSheet(true)}
           >
-            <Text style={styles.planBadgeText}>
+            <Text style={[styles.planBadgeText, { color: colors.foreground }]}>
               {selectedModel} · <Text style={{ color: "#22c55e", fontWeight: "700" }}>Online</Text>
             </Text>
           </Pressable>
 
-          {/* New Chat Reset Button */}
           <Pressable
-            style={styles.resetBtn}
+            style={[styles.resetBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={handleStartNewChat}
           >
-            <Ionicons name="add-outline" size={20} color="#ffffff" />
+            <Ionicons name="add-outline" size={20} color={colors.foreground} />
           </Pressable>
         </View>
 
         {/* 2. CHAT SCROLL AREA */}
         <ScrollView
           ref={scrollViewRef}
-          style={styles.messagesScroll}
+          style={[styles.messagesScroll, { backgroundColor: colors.background }]}
           contentContainerStyle={[
             styles.messagesContent,
             messages.length === 0 ? styles.emptyCenterContent : null,
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* EMPTY HERO STATE (Exact layout from Left Screen in reference) */}
           {messages.length === 0 ? (
             <View style={styles.emptyHeroContainer}>
-              <View style={styles.heroLogoWrap}>
-                <Ionicons name="sparkles" size={32} color="#ffffff" />
+              <View style={[styles.heroLogoWrap, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Ionicons name="sparkles" size={32} color={colors.foreground} />
               </View>
-              <Text style={styles.emptyHeroGreeting}>
+              <Text style={[styles.emptyHeroGreeting, { color: colors.foreground }]}>
                 Good Morning, {displayName}
               </Text>
-              <Text style={styles.emptyHeroSub}>
+              <Text style={[styles.emptyHeroSub, { color: colors.mutedForeground }]}>
                 Ask anything about CivicFix, track live reports, or describe a defect.
               </Text>
 
@@ -423,10 +417,10 @@ export default function AssistantScreen() {
                 {QUICK_PROMPTS.slice(0, 3).map((prompt) => (
                   <Pressable
                     key={prompt}
-                    style={styles.heroPromptPill}
+                    style={[styles.heroPromptPill, { backgroundColor: colors.surface, borderColor: colors.border }]}
                     onPress={() => sendMessage(prompt)}
                   >
-                    <Text style={styles.heroPromptPillText}>{prompt}</Text>
+                    <Text style={[styles.heroPromptPillText, { color: colors.foreground }]}>{prompt}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -443,7 +437,6 @@ export default function AssistantScreen() {
                     isUser ? styles.messageRowUser : styles.messageRowBot,
                   ]}
                 >
-                  {/* Photo Preview inside User Bubble if attached */}
                   {msg.extracted?.photoUri ? (
                     <Image
                       source={{ uri: msg.extracted.photoUri }}
@@ -451,23 +444,25 @@ export default function AssistantScreen() {
                     />
                   ) : null}
 
-                  {/* Message Bubble */}
                   <View
                     style={[
                       styles.bubbleContainer,
-                      isUser ? styles.bubbleUser : styles.bubbleBot,
+                      isUser
+                        ? [styles.bubbleUser, { backgroundColor: colors.inverseBackground }]
+                        : [styles.bubbleBot],
                     ]}
                   >
                     <Text
                       style={[
                         styles.messageText,
-                        isUser ? styles.messageTextUser : styles.messageTextBot,
+                        isUser
+                          ? { color: colors.inverseForeground }
+                          : { color: colors.foreground },
                       ]}
                     >
                       {msg.text}
                     </Text>
 
-                    {/* Action Pills */}
                     {msg.actions && msg.actions.length > 0 && (
                       <View style={styles.bubbleActionsWrap}>
                         {msg.actions.map((act) => (
@@ -476,8 +471,8 @@ export default function AssistantScreen() {
                             style={[
                               styles.bubbleActionBtn,
                               act.variant === "primary"
-                                ? styles.bubbleActionPrimary
-                                : styles.bubbleActionSecondary,
+                                ? [styles.bubbleActionPrimary, { backgroundColor: colors.inverseBackground }]
+                                : [styles.bubbleActionSecondary, { backgroundColor: colors.surface, borderColor: colors.border }],
                             ]}
                             onPress={() => handleAction(msg, act)}
                           >
@@ -485,8 +480,8 @@ export default function AssistantScreen() {
                               style={[
                                 styles.bubbleActionText,
                                 act.variant === "primary"
-                                  ? styles.bubbleActionTextPrimary
-                                  : styles.bubbleActionTextSecondary,
+                                  ? { color: colors.inverseForeground }
+                                  : { color: colors.foreground },
                               ]}
                             >
                               {act.label}
@@ -497,7 +492,6 @@ export default function AssistantScreen() {
                     )}
                   </View>
 
-                  {/* UTILITY TOOLBAR UNDER BOT REPLIES (Exact icons from reference image) */}
                   {!isUser && (
                     <View style={styles.botUtilityRow}>
                       <Pressable
@@ -507,7 +501,7 @@ export default function AssistantScreen() {
                         <Ionicons
                           name={copiedId === msg.id ? "checkmark" : "copy-outline"}
                           size={15}
-                          color={copiedId === msg.id ? "#22c55e" : "#8e8e8e"}
+                          color={copiedId === msg.id ? "#22c55e" : colors.mutedForeground}
                         />
                       </Pressable>
 
@@ -518,26 +512,26 @@ export default function AssistantScreen() {
                         <Ionicons
                           name={likedMessages.has(msg.id) ? "thumbs-up" : "thumbs-up-outline"}
                           size={15}
-                          color={likedMessages.has(msg.id) ? "#ffffff" : "#8e8e8e"}
+                          color={likedMessages.has(msg.id) ? colors.foreground : colors.mutedForeground}
                         />
                       </Pressable>
 
                       <Pressable style={styles.utilityIconBtn}>
-                        <Ionicons name="thumbs-down-outline" size={15} color="#8e8e8e" />
+                        <Ionicons name="thumbs-down-outline" size={15} color={colors.mutedForeground} />
                       </Pressable>
 
                       <Pressable
                         style={styles.utilityIconBtn}
                         onPress={() => sendMessage("Tell me more details about this")}
                       >
-                        <Ionicons name="share-outline" size={15} color="#8e8e8e" />
+                        <Ionicons name="share-outline" size={15} color={colors.mutedForeground} />
                       </Pressable>
 
                       <Pressable
                         style={styles.utilityIconBtn}
                         onPress={() => sendMessage("Re-analyze this issue")}
                       >
-                        <Ionicons name="reload-outline" size={15} color="#8e8e8e" />
+                        <Ionicons name="reload-outline" size={15} color={colors.mutedForeground} />
                       </Pressable>
                     </View>
                   )}
@@ -548,9 +542,9 @@ export default function AssistantScreen() {
 
           {loading && (
             <View style={styles.typingIndicatorRow}>
-              <View style={styles.typingBubble}>
-                <ActivityIndicator size="small" color="#ffffff" />
-                <Text style={styles.typingText}>CivicBot is thinking…</Text>
+              <View style={[styles.typingBubble, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <ActivityIndicator size="small" color={colors.foreground} />
+                <Text style={[styles.typingText, { color: colors.mutedForeground }]}>CivicBot is thinking…</Text>
               </View>
             </View>
           )}
@@ -558,22 +552,21 @@ export default function AssistantScreen() {
 
         {/* Attached Photo Preview Chip */}
         {attachedPhoto && (
-          <View style={styles.attachedPreviewChip}>
+          <View style={[styles.attachedPreviewChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Image source={{ uri: attachedPhoto.uri }} style={styles.attachedThumbnail} />
-            <Text style={styles.attachedText} numberOfLines={1}>Photo attached for analysis</Text>
+            <Text style={[styles.attachedText, { color: colors.foreground }]} numberOfLines={1}>Photo attached for analysis</Text>
             <Pressable onPress={() => setAttachedPhoto(null)}>
               <Ionicons name="close-circle" size={18} color="#ef4444" />
             </Pressable>
           </View>
         )}
 
-        {/* 3. FLOATING BOTTOM INPUT DOCK (Exact UI from Right Screen in Reference) */}
-        <View style={styles.bottomDockContainer}>
-          {/* Top Input Row */}
+        {/* 3. FLOATING BOTTOM INPUT DOCK */}
+        <View style={[styles.bottomDockContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <TextInput
-            style={styles.dockTextInput}
+            style={[styles.dockTextInput, { color: colors.foreground }]}
             placeholder="How can I help you today?"
-            placeholderTextColor="#71717a"
+            placeholderTextColor={colors.dimForeground}
             value={input}
             onChangeText={setInput}
             onSubmitEditing={() => sendMessage()}
@@ -581,50 +574,50 @@ export default function AssistantScreen() {
             multiline={false}
           />
 
-          {/* Bottom Action Bar */}
           <View style={styles.dockActionBar}>
-            {/* Plus Attachment Button */}
-            <Pressable style={styles.dockPlusBtn} onPress={() => setShowAttachSheet(true)}>
-              <Ionicons name="add" size={20} color="#ffffff" />
+            <Pressable
+              style={[styles.dockPlusBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
+              onPress={() => setShowAttachSheet(true)}
+            >
+              <Ionicons name="add" size={20} color={colors.foreground} />
             </Pressable>
 
-            {/* Model Selector Pill */}
             <Pressable
-              style={styles.modelSelectorPill}
+              style={[styles.modelSelectorPill, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
               onPress={() => setShowModelSheet(true)}
             >
-              <Text style={styles.modelSelectorText}>{selectedModel}</Text>
-              <Ionicons name="chevron-down" size={13} color="#a1a1aa" />
+              <Text style={[styles.modelSelectorText, { color: colors.foreground }]}>{selectedModel}</Text>
+              <Ionicons name="chevron-down" size={13} color={colors.mutedForeground} />
             </Pressable>
 
             <View style={{ flex: 1 }} />
 
-            {/* Mic / Voice Icon */}
             <Pressable
               style={styles.dockMicBtn}
               onPress={() => sendMessage("Give us steps to rise a report or issue in this platform")}
             >
-              <Ionicons name="mic-outline" size={18} color="#a1a1aa" />
+              <Ionicons name="mic-outline" size={18} color={colors.mutedForeground} />
             </Pressable>
 
-            {/* Send / Waveform Button */}
             <Pressable
               style={[
                 styles.dockSendBtn,
-                (input.trim() || attachedPhoto) ? styles.dockSendBtnActive : styles.dockSendBtnInactive,
+                (input.trim() || attachedPhoto)
+                  ? [styles.dockSendBtnActive, { backgroundColor: colors.inverseBackground }]
+                  : [styles.dockSendBtnInactive, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }],
               ]}
               onPress={() => sendMessage()}
             >
               <Ionicons
                 name={(input.trim() || attachedPhoto) ? "arrow-up" : "pulse-outline"}
                 size={18}
-                color={(input.trim() || attachedPhoto) ? "#000000" : "#a1a1aa"}
+                color={(input.trim() || attachedPhoto) ? colors.inverseForeground : colors.mutedForeground}
               />
             </Pressable>
           </View>
         </View>
 
-        {/* 4. CHAT CONVERSATIONS HISTORY DRAWER MODAL */}
+        {/* 4. CHAT HISTORY DRAWER MODAL */}
         <Modal
           visible={showHistoryDrawer}
           transparent={true}
@@ -637,34 +630,30 @@ export default function AssistantScreen() {
               onPress={() => setShowHistoryDrawer(false)}
             />
 
-            {/* Side Drawer Content */}
-            <View style={styles.drawerSidebarContainer}>
-              {/* Drawer Top Header */}
+            <View style={[styles.drawerSidebarContainer, { backgroundColor: colors.surface, borderLeftColor: colors.border }]}>
               <View style={styles.drawerHeaderRow}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Ionicons name="chatbubbles" size={20} color="#ffffff" />
-                  <Text style={styles.drawerHeaderTitle}>Chat History</Text>
+                  <Ionicons name="chatbubbles" size={20} color={colors.foreground} />
+                  <Text style={[styles.drawerHeaderTitle, { color: colors.foreground }]}>Chat History</Text>
                 </View>
 
                 <Pressable
                   style={styles.drawerCloseIconBtn}
                   onPress={() => setShowHistoryDrawer(false)}
                 >
-                  <Ionicons name="close" size={20} color="#ffffff" />
+                  <Ionicons name="close" size={20} color={colors.foreground} />
                 </Pressable>
               </View>
 
-              {/* Start New Chat Hero Button */}
               <Pressable
-                style={styles.drawerNewChatBtn}
+                style={[styles.drawerNewChatBtn, { backgroundColor: colors.inverseBackground }]}
                 onPress={handleStartNewChat}
               >
-                <Ionicons name="add-circle" size={18} color="#000000" />
-                <Text style={styles.drawerNewChatBtnText}>New Conversation</Text>
+                <Ionicons name="add-circle" size={18} color={colors.inverseForeground} />
+                <Text style={[styles.drawerNewChatBtnText, { color: colors.inverseForeground }]}>New Conversation</Text>
               </Pressable>
 
-              {/* Sessions List */}
-              <Text style={styles.drawerSectionLabel}>Recent Conversations</Text>
+              <Text style={[styles.drawerSectionLabel, { color: colors.mutedForeground }]}>Recent Conversations</Text>
 
               <ScrollView
                 style={styles.drawerSessionsScroll}
@@ -673,9 +662,9 @@ export default function AssistantScreen() {
               >
                 {sessions.length === 0 ? (
                   <View style={styles.emptyDrawerWrap}>
-                    <Ionicons name="chatbubble-ellipses-outline" size={32} color="#3f3f46" />
-                    <Text style={styles.emptyDrawerText}>No past conversations yet.</Text>
-                    <Text style={styles.emptyDrawerSub}>Your chats with CivicBot will be automatically saved here.</Text>
+                    <Ionicons name="chatbubble-ellipses-outline" size={32} color={colors.dimForeground} />
+                    <Text style={[styles.emptyDrawerText, { color: colors.mutedForeground }]}>No past conversations yet.</Text>
+                    <Text style={[styles.emptyDrawerSub, { color: colors.dimForeground }]}>Your chats with CivicBot will be automatically saved here.</Text>
                   </View>
                 ) : (
                   sessions.map((session) => {
@@ -686,30 +675,31 @@ export default function AssistantScreen() {
                         key={session.id}
                         style={[
                           styles.sessionCard,
-                          isCurrent ? styles.sessionCardActive : styles.sessionCardInactive,
+                          isCurrent
+                            ? [styles.sessionCardActive, { backgroundColor: colors.surfaceMuted, borderColor: colors.foreground }]
+                            : [styles.sessionCardInactive, { backgroundColor: colors.background, borderColor: colors.border }],
                         ]}
                         onPress={() => handleSelectSession(session)}
                       >
                         <Ionicons
                           name={isCurrent ? "chatbubble" : "chatbubble-outline"}
                           size={16}
-                          color={isCurrent ? "#ffffff" : "#8e8e8e"}
+                          color={isCurrent ? colors.foreground : colors.mutedForeground}
                         />
 
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text
                             style={[
                               styles.sessionTitleText,
-                              isCurrent ? styles.sessionTitleActive : styles.sessionTitleInactive,
+                              { color: colors.foreground, fontFamily: isCurrent ? fontFamily.bold : fontFamily.medium },
                             ]}
                             numberOfLines={1}
                           >
                             {session.title}
                           </Text>
-                          <Text style={styles.sessionTimeText}>{formatTime(session.updatedAt)}</Text>
+                          <Text style={[styles.sessionTimeText, { color: colors.mutedForeground }]}>{formatTime(session.updatedAt)}</Text>
                         </View>
 
-                        {/* Delete Session Button */}
                         <Pressable
                           style={styles.sessionDeleteBtn}
                           onPress={(e) => {
@@ -717,7 +707,7 @@ export default function AssistantScreen() {
                             handleDeleteSession(session.id);
                           }}
                         >
-                          <Ionicons name="trash-outline" size={15} color="#71717a" />
+                          <Ionicons name="trash-outline" size={15} color={colors.mutedForeground} />
                         </Pressable>
                       </Pressable>
                     );
@@ -728,7 +718,7 @@ export default function AssistantScreen() {
           </View>
         </Modal>
 
-        {/* 5. CUSTOM PHOTO ATTACHMENT BOTTOM SHEET */}
+        {/* 5. PHOTO ATTACHMENT BOTTOM SHEET */}
         <Modal
           visible={showAttachSheet}
           transparent={true}
@@ -739,60 +729,60 @@ export default function AssistantScreen() {
             style={styles.modalBackdrop}
             onPress={() => setShowAttachSheet(false)}
           >
-            <Pressable style={styles.bottomSheetContainer} onPress={(e) => e.stopPropagation()}>
-              <View style={styles.dragHandle} />
-              <Text style={styles.sheetTitle}>Attach Photo Evidence</Text>
-              <Text style={styles.sheetSubtitle}>
+            <Pressable style={[styles.bottomSheetContainer, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={(e) => e.stopPropagation()}>
+              <View style={[styles.dragHandle, { backgroundColor: colors.borderStrong }]} />
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Attach Photo Evidence</Text>
+              <Text style={[styles.sheetSubtitle, { color: colors.mutedForeground }]}>
                 AI vision will automatically inspect the defect, categorize it, and pin GPS coordinates.
               </Text>
 
               <View style={styles.sheetTilesList}>
                 <Pressable
-                  style={styles.sheetOptionTile}
+                  style={[styles.sheetOptionTile, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                   onPress={() => {
                     setShowAttachSheet(false);
                     setTimeout(handleTakePhoto, 300);
                   }}
                 >
-                  <View style={styles.sheetIconCircleWhite}>
-                    <Ionicons name="camera" size={22} color="#000000" />
+                  <View style={[styles.sheetIconCircleWhite, { backgroundColor: colors.inverseBackground }]}>
+                    <Ionicons name="camera" size={22} color={colors.inverseForeground} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.sheetOptionTitle}>Take Live Photo</Text>
-                    <Text style={styles.sheetOptionSub}>Snap on-site damage (road, lighting, waste)</Text>
+                    <Text style={[styles.sheetOptionTitle, { color: colors.foreground }]}>Take Live Photo</Text>
+                    <Text style={[styles.sheetOptionSub, { color: colors.mutedForeground }]}>Snap on-site damage (road, lighting, waste)</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color="#64748b" />
+                  <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
                 </Pressable>
 
                 <Pressable
-                  style={styles.sheetOptionTile}
+                  style={[styles.sheetOptionTile, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                   onPress={() => {
                     setShowAttachSheet(false);
                     setTimeout(handlePickImage, 300);
                   }}
                 >
-                  <View style={styles.sheetIconCircleDark}>
-                    <Ionicons name="images" size={20} color="#ffffff" />
+                  <View style={[styles.sheetIconCircleDark, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Ionicons name="images" size={20} color={colors.foreground} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.sheetOptionTitle}>Choose from Library</Text>
-                    <Text style={styles.sheetOptionSub}>Select an existing image from camera roll</Text>
+                    <Text style={[styles.sheetOptionTitle, { color: colors.foreground }]}>Choose from Library</Text>
+                    <Text style={[styles.sheetOptionSub, { color: colors.mutedForeground }]}>Select an existing image from camera roll</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color="#64748b" />
+                  <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
                 </Pressable>
               </View>
 
               <Pressable
-                style={styles.sheetCancelBtn}
+                style={[styles.sheetCancelBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                 onPress={() => setShowAttachSheet(false)}
               >
-                <Text style={styles.sheetCancelBtnText}>Cancel</Text>
+                <Text style={[styles.sheetCancelBtnText, { color: colors.foreground }]}>Cancel</Text>
               </Pressable>
             </Pressable>
           </Pressable>
         </Modal>
 
-        {/* 6. CUSTOM MODEL SELECTOR BOTTOM SHEET */}
+        {/* 6. MODEL SELECTOR BOTTOM SHEET */}
         <Modal
           visible={showModelSheet}
           transparent={true}
@@ -803,10 +793,10 @@ export default function AssistantScreen() {
             style={styles.modalBackdrop}
             onPress={() => setShowModelSheet(false)}
           >
-            <Pressable style={styles.bottomSheetContainer} onPress={(e) => e.stopPropagation()}>
-              <View style={styles.dragHandle} />
-              <Text style={styles.sheetTitle}>Select AI Model</Text>
-              <Text style={styles.sheetSubtitle}>
+            <Pressable style={[styles.bottomSheetContainer, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={(e) => e.stopPropagation()}>
+              <View style={[styles.dragHandle, { backgroundColor: colors.borderStrong }]} />
+              <Text style={[styles.sheetTitle, { color: colors.foreground }]}>Select AI Model</Text>
+              <Text style={[styles.sheetSubtitle, { color: colors.mutedForeground }]}>
                 Choose the neural engine powering CivicFix conversation and vision.
               </Text>
 
@@ -818,7 +808,8 @@ export default function AssistantScreen() {
                       key={m.id}
                       style={[
                         styles.sheetOptionTile,
-                        isSelected ? { borderColor: "#ffffff" } : null,
+                        { backgroundColor: colors.surfaceMuted, borderColor: colors.border },
+                        isSelected ? { borderColor: colors.foreground } : null,
                       ]}
                       onPress={() => {
                         setSelectedModel(m.id);
@@ -828,18 +819,19 @@ export default function AssistantScreen() {
                       <View
                         style={[
                           styles.sheetIconCircleDark,
-                          isSelected ? { backgroundColor: "#ffffff" } : null,
+                          { backgroundColor: colors.surface, borderColor: colors.border },
+                          isSelected ? { backgroundColor: colors.inverseBackground } : null,
                         ]}
                       >
                         <Ionicons
                           name="hardware-chip"
                           size={18}
-                          color={isSelected ? "#000000" : "#ffffff"}
+                          color={isSelected ? colors.inverseForeground : colors.foreground}
                         />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.sheetOptionTitle}>{m.name}</Text>
-                        <Text style={styles.sheetOptionSub}>{m.desc}</Text>
+                        <Text style={[styles.sheetOptionTitle, { color: colors.foreground }]}>{m.name}</Text>
+                        <Text style={[styles.sheetOptionSub, { color: colors.mutedForeground }]}>{m.desc}</Text>
                       </View>
                       {isSelected ? (
                         <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
@@ -850,10 +842,10 @@ export default function AssistantScreen() {
               </View>
 
               <Pressable
-                style={styles.sheetCancelBtn}
+                style={[styles.sheetCancelBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                 onPress={() => setShowModelSheet(false)}
               >
-                <Text style={styles.sheetCancelBtnText}>Done</Text>
+                <Text style={[styles.sheetCancelBtnText, { color: colors.foreground }]}>Done</Text>
               </Pressable>
             </Pressable>
           </Pressable>
@@ -866,11 +858,9 @@ export default function AssistantScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   keyboardContainer: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   topNavHeader: {
     flexDirection: "row",
@@ -879,44 +869,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[2],
     borderBottomWidth: 1,
-    borderBottomColor: "#18181b",
   },
   menuIconBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#18181b",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   planBadgeContainer: {
-    backgroundColor: "#18181b",
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   planBadgeText: {
     fontSize: 12,
     fontFamily: fontFamily.semibold,
-    color: "#ffffff",
   },
   resetBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#18181b",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   messagesScroll: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   messagesContent: {
     paddingHorizontal: spacing[4],
@@ -939,24 +920,20 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: "#18181b",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#27272a",
     marginBottom: 8,
   },
   emptyHeroGreeting: {
     fontSize: 28,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
     textAlign: "center",
     letterSpacing: -0.5,
   },
   emptyHeroSub: {
     fontSize: 13,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     textAlign: "center",
     maxWidth: 280,
     lineHeight: 18,
@@ -967,18 +944,15 @@ const styles = StyleSheet.create({
     marginTop: spacing[4],
   },
   heroPromptPill: {
-    backgroundColor: "#121214",
     borderRadius: radius.pill,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: "#27272a",
     alignItems: "center",
   },
   heroPromptPillText: {
     fontSize: 13,
     fontFamily: fontFamily.medium,
-    color: "#d4d4d8",
   },
   messageRow: {
     width: "100%",
@@ -1002,11 +976,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     maxWidth: "88%",
   },
-  bubbleUser: {
-    backgroundColor: "#18181b",
-    borderWidth: 1,
-    borderColor: "#27272a",
-  },
+  bubbleUser: {},
   bubbleBot: {
     backgroundColor: "transparent",
     paddingHorizontal: 0,
@@ -1017,12 +987,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fontFamily.regular,
     lineHeight: 21,
-  },
-  messageTextUser: {
-    color: "#ffffff",
-  },
-  messageTextBot: {
-    color: "#f4f4f5",
   },
   bubbleActionsWrap: {
     gap: 8,
@@ -1036,23 +1000,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  bubbleActionPrimary: {
-    backgroundColor: "#ffffff",
-  },
+  bubbleActionPrimary: {},
   bubbleActionSecondary: {
-    backgroundColor: "#18181b",
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   bubbleActionText: {
     fontSize: 13,
     fontFamily: fontFamily.bold,
-  },
-  bubbleActionTextPrimary: {
-    color: "#000000",
-  },
-  bubbleActionTextSecondary: {
-    color: "#ffffff",
   },
   botUtilityRow: {
     flexDirection: "row",
@@ -1073,30 +1027,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#121214",
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   typingText: {
     fontSize: 12,
     fontFamily: fontFamily.medium,
-    color: "#8e8e8e",
   },
   attachedPreviewChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#18181b",
     marginHorizontal: 14,
     marginBottom: 8,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#27272a",
     alignSelf: "flex-start",
   },
   attachedThumbnail: {
@@ -1107,14 +1056,11 @@ const styles = StyleSheet.create({
   attachedText: {
     fontSize: 12,
     fontFamily: fontFamily.medium,
-    color: "#ffffff",
     maxWidth: 200,
   },
   bottomDockContainer: {
-    backgroundColor: "#121214",
     borderRadius: 26,
     borderWidth: 1,
-    borderColor: "#27272a",
     marginHorizontal: 14,
     marginBottom: Platform.OS === "ios" ? 6 : 12,
     paddingTop: 12,
@@ -1123,7 +1069,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dockTextInput: {
-    color: "#ffffff",
     fontSize: 15,
     fontFamily: fontFamily.regular,
     minHeight: 24,
@@ -1139,27 +1084,22 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#18181b",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   modelSelectorPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "#18181b",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   modelSelectorText: {
     fontSize: 11,
     fontFamily: fontFamily.medium,
-    color: "#d4d4d8",
   },
   dockMicBtn: {
     width: 34,
@@ -1175,25 +1115,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  dockSendBtnActive: {
-    backgroundColor: "#ffffff",
-  },
+  dockSendBtnActive: {},
   dockSendBtnInactive: {
-    backgroundColor: "#18181b",
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "flex-end",
   },
   bottomSheetContainer: {
-    backgroundColor: "#121214",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderWidth: 1,
-    borderColor: "#27272a",
     paddingTop: 12,
     paddingBottom: Platform.OS === "ios" ? 36 : 24,
     paddingHorizontal: 20,
@@ -1203,19 +1137,16 @@ const styles = StyleSheet.create({
     width: 38,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#3f3f46",
     alignSelf: "center",
     marginBottom: 8,
   },
   sheetTitle: {
     fontSize: 19,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   sheetSubtitle: {
     fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     lineHeight: 16,
   },
   sheetTilesList: {
@@ -1226,18 +1157,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    backgroundColor: "#18181b",
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   sheetIconCircleWhite: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1245,39 +1173,34 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: "#27272a",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
   },
   sheetOptionTitle: {
     fontSize: 14,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   sheetOptionSub: {
     fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     marginTop: 2,
   },
   sheetCancelBtn: {
-    backgroundColor: "#18181b",
     height: 48,
     borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#27272a",
     marginTop: 4,
   },
   sheetCancelBtnText: {
     fontSize: 14,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   drawerBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     flexDirection: "row",
   },
   drawerDismissArea: {
@@ -1286,9 +1209,7 @@ const styles = StyleSheet.create({
   drawerSidebarContainer: {
     width: "82%",
     maxWidth: 320,
-    backgroundColor: "#0d0d0f",
     borderLeftWidth: 1,
-    borderLeftColor: "#27272a",
     paddingTop: Platform.OS === "ios" ? 54 : 24,
     paddingBottom: 24,
     paddingHorizontal: 16,
@@ -1303,7 +1224,6 @@ const styles = StyleSheet.create({
   drawerHeaderTitle: {
     fontSize: 18,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   drawerCloseIconBtn: {
     padding: 6,
@@ -1313,19 +1233,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#ffffff",
     height: 46,
     borderRadius: radius.pill,
   },
   drawerNewChatBtnText: {
     fontSize: 13,
     fontFamily: fontFamily.bold,
-    color: "#000000",
   },
   drawerSectionLabel: {
     fontSize: 11,
     fontFamily: fontFamily.bold,
-    color: "#71717a",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginTop: 4,
@@ -1346,12 +1263,10 @@ const styles = StyleSheet.create({
   emptyDrawerText: {
     fontSize: 13,
     fontFamily: fontFamily.semibold,
-    color: "#a1a1aa",
   },
   emptyDrawerSub: {
     fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: "#71717a",
     textAlign: "center",
     maxWidth: 200,
     lineHeight: 15,
@@ -1365,29 +1280,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
   },
-  sessionCardActive: {
-    backgroundColor: "#18181b",
-    borderColor: "#ffffff",
-  },
-  sessionCardInactive: {
-    backgroundColor: "#121214",
-    borderColor: "#27272a",
-  },
+  sessionCardActive: {},
+  sessionCardInactive: {},
   sessionTitleText: {
     fontSize: 13,
-    fontFamily: fontFamily.medium,
-  },
-  sessionTitleActive: {
-    color: "#ffffff",
-    fontFamily: fontFamily.bold,
-  },
-  sessionTitleInactive: {
-    color: "#d4d4d8",
   },
   sessionTimeText: {
     fontSize: 10,
     fontFamily: fontFamily.regular,
-    color: "#71717a",
     marginTop: 2,
   },
   sessionDeleteBtn: {

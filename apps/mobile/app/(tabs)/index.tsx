@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../../lib/auth-context";
+import { useTheme } from "../../lib/theme-context";
 import { fetchMyIssues, fetchNearbyPublicIssues } from "../../lib/repositories/issues";
 import { fetchMyNotifications } from "../../lib/repositories/notifications";
 import { CATEGORY_LABEL, STATUS_LABEL } from "../../lib/status";
@@ -47,6 +48,7 @@ type TabFilter = "dashboard" | "reminders" | "progress";
 export default function Home() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors, isDark } = useTheme();
   const [myIssues, setMyIssues] = useState<Issue[]>([]);
   const [nearby, setNearby] = useState<Issue[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -91,49 +93,49 @@ export default function Home() {
   const fullName = user?.name ? user.name : "Resident";
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={["top"]}>
       <ScrollView
-        style={styles.scrollContainer}
+        style={[styles.scrollContainer, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffffff" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
         }
       >
         {/* 1. TOP HEADER */}
         <View style={styles.topHeaderRow}>
           <View>
             <View style={styles.dateRow}>
-              <Text style={styles.dateDayText}>{dayAndDate}</Text>
+              <Text style={[styles.dateDayText, { color: colors.foreground }]}>{dayAndDate}</Text>
               <View style={styles.redAccentDot} />
             </View>
-            <Text style={styles.dateMonthText}>{month}</Text>
+            <Text style={[styles.dateMonthText, { color: colors.mutedForeground }]}>{month}</Text>
           </View>
 
           <Pressable
-            style={styles.bellButton}
+            style={[styles.bellButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => router.push("/notifications")}
           >
-            <Ionicons name="notifications" size={19} color="#ffffff" />
+            <Ionicons name="notifications" size={19} color={colors.foreground} />
             {unreadNotes > 0 && <View style={styles.bellBadge} />}
           </Pressable>
         </View>
 
         {/* 2. HERO GREETING */}
         <View style={styles.greetingContainer}>
-          <Text style={styles.greetingLine1}>{greeting()},</Text>
-          <Text style={styles.greetingLine2}>{fullName}!</Text>
+          <Text style={[styles.greetingLine1, { color: colors.foreground }]}>{greeting()},</Text>
+          <Text style={[styles.greetingLine2, { color: colors.foreground }]}>{fullName}!</Text>
         </View>
 
         {/* 3. SEARCH / PRIORITY PILL INPUT */}
         <Pressable
-          style={styles.searchBarContainer}
+          style={[styles.searchBarContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={() => router.push("/(tabs)/assistant")}
         >
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.foreground }]}
             placeholder="What's your next priority?"
-            placeholderTextColor="#8e8e8e"
+            placeholderTextColor={colors.dimForeground}
             value={searchQuery}
             onChangeText={setSearchQuery}
             editable={false}
@@ -143,7 +145,7 @@ export default function Home() {
             style={styles.micButton}
             onPress={() => router.push("/(tabs)/assistant")}
           >
-            <Ionicons name="mic" size={17} color="#a1a1aa" />
+            <Ionicons name="mic" size={17} color={colors.mutedForeground} />
           </Pressable>
         </Pressable>
 
@@ -156,19 +158,21 @@ export default function Home() {
           <Pressable
             style={[
               styles.filterPill,
-              selectedFilter === "dashboard" ? styles.filterPillActive : styles.filterPillInactive,
+              selectedFilter === "dashboard"
+                ? [styles.filterPillActive, { backgroundColor: colors.inverseBackground }]
+                : [styles.filterPillInactive, { backgroundColor: colors.surface, borderColor: colors.border }],
             ]}
             onPress={() => setSelectedFilter("dashboard")}
           >
             <Ionicons
               name="grid"
               size={14}
-              color={selectedFilter === "dashboard" ? "#000000" : "#f43f5e"}
+              color={selectedFilter === "dashboard" ? colors.inverseForeground : "#f43f5e"}
             />
             <Text
               style={[
                 styles.filterPillText,
-                selectedFilter === "dashboard" ? styles.filterPillTextActive : styles.filterPillTextInactive,
+                { color: selectedFilter === "dashboard" ? colors.inverseForeground : colors.foreground },
               ]}
             >
               Dashboard
@@ -178,19 +182,21 @@ export default function Home() {
           <Pressable
             style={[
               styles.filterPill,
-              selectedFilter === "reminders" ? styles.filterPillActive : styles.filterPillInactive,
+              selectedFilter === "reminders"
+                ? [styles.filterPillActive, { backgroundColor: colors.inverseBackground }]
+                : [styles.filterPillInactive, { backgroundColor: colors.surface, borderColor: colors.border }],
             ]}
             onPress={() => setSelectedFilter("reminders")}
           >
             <Ionicons
               name="notifications"
               size={14}
-              color={selectedFilter === "reminders" ? "#000000" : "#818cf8"}
+              color={selectedFilter === "reminders" ? colors.inverseForeground : "#818cf8"}
             />
             <Text
               style={[
                 styles.filterPillText,
-                selectedFilter === "reminders" ? styles.filterPillTextActive : styles.filterPillTextInactive,
+                { color: selectedFilter === "reminders" ? colors.inverseForeground : colors.foreground },
               ]}
             >
               Reminders
@@ -200,19 +206,21 @@ export default function Home() {
           <Pressable
             style={[
               styles.filterPill,
-              selectedFilter === "progress" ? styles.filterPillActive : styles.filterPillInactive,
+              selectedFilter === "progress"
+                ? [styles.filterPillActive, { backgroundColor: colors.inverseBackground }]
+                : [styles.filterPillInactive, { backgroundColor: colors.surface, borderColor: colors.border }],
             ]}
             onPress={() => setSelectedFilter("progress")}
           >
             <Ionicons
               name="time"
               size={14}
-              color={selectedFilter === "progress" ? "#000000" : "#fbbf24"}
+              color={selectedFilter === "progress" ? colors.inverseForeground : "#fbbf24"}
             />
             <Text
               style={[
                 styles.filterPillText,
-                selectedFilter === "progress" ? styles.filterPillTextActive : styles.filterPillTextInactive,
+                { color: selectedFilter === "progress" ? colors.inverseForeground : colors.foreground },
               ]}
             >
               Progress
@@ -226,11 +234,11 @@ export default function Home() {
         {selectedFilter === "dashboard" && (
           <>
             {/* "Progress in Motion" Hero Card */}
-            <View style={styles.progressHeroCard}>
+            <View style={[styles.progressHeroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.progressTopRow}>
                 <View style={styles.progressTitleRow}>
-                  <Ionicons name="pie-chart-outline" size={17} color="#ffffff" />
-                  <Text style={styles.progressCardTitle}>Progress in motion</Text>
+                  <Ionicons name="pie-chart-outline" size={17} color={colors.foreground} />
+                  <Text style={[styles.progressCardTitle, { color: colors.foreground }]}>Progress in motion</Text>
                 </View>
                 <View style={styles.percentBadge}>
                   <Text style={styles.percentBadgeText}>79% complete</Text>
@@ -239,8 +247,8 @@ export default function Home() {
 
               <View style={styles.progressSubRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.momentumLabel}>Momentum</Text>
-                  <Text style={styles.momentumText}>You're on a roll! 4 days strong.</Text>
+                  <Text style={[styles.momentumLabel, { color: colors.mutedForeground }]}>Momentum</Text>
+                  <Text style={[styles.momentumText, { color: colors.foreground }]}>You're on a roll! 4 days strong.</Text>
                 </View>
 
                 {/* Segmented LED Green Bars */}
@@ -250,7 +258,9 @@ export default function Home() {
                       key={bar}
                       style={[
                         styles.segmentItem,
-                        bar <= 8 ? styles.segmentFilled : styles.segmentEmpty,
+                        bar <= 8
+                          ? styles.segmentFilled
+                          : [styles.segmentEmpty, { backgroundColor: colors.surfaceMuted }],
                       ]}
                     />
                   ))}
@@ -265,33 +275,33 @@ export default function Home() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.horizontalCardsTrack}
               >
-                <View style={styles.taskDeckCard}>
+                <View style={[styles.taskDeckCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <View style={styles.avatarStackRow}>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#f59e0b" }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#f59e0b", borderColor: colors.surface }]}>
                       <Ionicons name="construct" size={12} color="#000000" />
                     </View>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#38bdf8", marginLeft: -8 }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#38bdf8", borderColor: colors.surface, marginLeft: -8 }]}>
                       <Ionicons name="shield-checkmark" size={12} color="#000000" />
                     </View>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#22c55e", marginLeft: -8 }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#22c55e", borderColor: colors.surface, marginLeft: -8 }]}>
                       <Ionicons name="person" size={12} color="#000000" />
                     </View>
                   </View>
 
-                  <Text style={styles.taskDeckTitle} numberOfLines={1}>
+                  <Text style={[styles.taskDeckTitle, { color: colors.foreground }]} numberOfLines={1}>
                     {myIssues[0]?.trackingId || "CF-47804-l17u"}
                   </Text>
-                  <Text style={styles.taskDeckSubtitle} numberOfLines={1}>
+                  <Text style={[styles.taskDeckSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
                     {myIssues[0]?.category ? CATEGORY_LABEL[myIssues[0].category] : "Pothole"} · Active
                   </Text>
                   <View style={styles.taskDeckTimeRow}>
-                    <Ionicons name="time-outline" size={13} color="#8e8e8e" />
-                    <Text style={styles.taskDeckTimeText}>3:00 PM - 4:30 PM</Text>
+                    <Ionicons name="time-outline" size={13} color={colors.mutedForeground} />
+                    <Text style={[styles.taskDeckTimeText, { color: colors.mutedForeground }]}>3:00 PM - 4:30 PM</Text>
                   </View>
 
                   <View style={styles.taskDeckActionsRow}>
                     <Pressable
-                      style={styles.taskDeckPrimaryBtn}
+                      style={[styles.taskDeckPrimaryBtn, { backgroundColor: colors.inverseBackground }]}
                       onPress={() => {
                         if (myIssues[0]) {
                           router.push({ pathname: "/reports/[id]", params: { id: myIssues[0].id } });
@@ -300,42 +310,42 @@ export default function Home() {
                         }
                       }}
                     >
-                      <Text style={styles.taskDeckPrimaryBtnText}>Complete</Text>
+                      <Text style={[styles.taskDeckPrimaryBtnText, { color: colors.inverseForeground }]}>Complete</Text>
                     </Pressable>
 
                     <Pressable
-                      style={styles.taskDeckSecondaryBtn}
+                      style={[styles.taskDeckSecondaryBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                       onPress={() => router.push("/(tabs)/assistant")}
                     >
-                      <Text style={styles.taskDeckSecondaryBtnText}>Dismiss</Text>
+                      <Text style={[styles.taskDeckSecondaryBtnText, { color: colors.foreground }]}>Dismiss</Text>
                     </Pressable>
                   </View>
                 </View>
 
-                <View style={styles.taskDeckCard}>
+                <View style={[styles.taskDeckCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <View style={styles.avatarStackRow}>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#ec4899" }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#ec4899", borderColor: colors.surface }]}>
                       <Ionicons name="bulb" size={12} color="#000000" />
                     </View>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#a855f7", marginLeft: -8 }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#a855f7", borderColor: colors.surface, marginLeft: -8 }]}>
                       <Ionicons name="checkmark" size={12} color="#000000" />
                     </View>
                   </View>
 
-                  <Text style={styles.taskDeckTitle} numberOfLines={1}>
+                  <Text style={[styles.taskDeckTitle, { color: colors.foreground }]} numberOfLines={1}>
                     {myIssues[1]?.trackingId || "CF-89480-2zio"}
                   </Text>
-                  <Text style={styles.taskDeckSubtitle} numberOfLines={1}>
+                  <Text style={[styles.taskDeckSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
                     {myIssues[1]?.category ? CATEGORY_LABEL[myIssues[1].category] : "Other"} · Dispatched
                   </Text>
                   <View style={styles.taskDeckTimeRow}>
-                    <Ionicons name="time-outline" size={13} color="#8e8e8e" />
-                    <Text style={styles.taskDeckTimeText}>6:00 PM - 7:00 PM</Text>
+                    <Ionicons name="time-outline" size={13} color={colors.mutedForeground} />
+                    <Text style={[styles.taskDeckTimeText, { color: colors.mutedForeground }]}>6:00 PM - 7:00 PM</Text>
                   </View>
 
                   <View style={styles.taskDeckActionsRow}>
                     <Pressable
-                      style={styles.taskDeckPrimaryBtn}
+                      style={[styles.taskDeckPrimaryBtn, { backgroundColor: colors.inverseBackground }]}
                       onPress={() => {
                         if (myIssues[1]) {
                           router.push({ pathname: "/reports/[id]", params: { id: myIssues[1].id } });
@@ -344,14 +354,14 @@ export default function Home() {
                         }
                       }}
                     >
-                      <Text style={styles.taskDeckPrimaryBtnText}>Complete</Text>
+                      <Text style={[styles.taskDeckPrimaryBtnText, { color: colors.inverseForeground }]}>Complete</Text>
                     </Pressable>
 
                     <Pressable
-                      style={styles.taskDeckSecondaryBtn}
+                      style={[styles.taskDeckSecondaryBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                       onPress={() => router.push("/(tabs)/community")}
                     >
-                      <Text style={styles.taskDeckSecondaryBtnText}>Dismiss</Text>
+                      <Text style={[styles.taskDeckSecondaryBtnText, { color: colors.foreground }]}>Dismiss</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -359,11 +369,11 @@ export default function Home() {
             </View>
 
             {/* To-Do List */}
-            <View style={styles.todoListCard}>
+            <View style={[styles.todoListCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.todoHeaderRow}>
                 <View style={styles.todoHeaderTitleRow}>
-                  <Ionicons name="checkmark-circle-outline" size={18} color="#ffffff" />
-                  <Text style={styles.todoCardTitle}>To-do list</Text>
+                  <Ionicons name="checkmark-circle-outline" size={18} color={colors.foreground} />
+                  <Text style={[styles.todoCardTitle, { color: colors.foreground }]}>To-do list</Text>
                 </View>
                 <View style={styles.liveActiveBadge}>
                   <View style={styles.liveGreenDot} />
@@ -373,7 +383,7 @@ export default function Home() {
 
               <View style={styles.todoItemsWrapper}>
                 <Pressable
-                  style={styles.todoRowItem}
+                  style={[styles.todoRowItem, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                   onPress={() => {
                     if (activeIssues[0]) {
                       router.push({ pathname: "/reports/[id]", params: { id: activeIssues[0].id } });
@@ -384,21 +394,21 @@ export default function Home() {
                 >
                   <View style={[styles.todoRadioRing, { borderColor: "#fbbf24" }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.todoItemTitle} numberOfLines={1}>
+                    <Text style={[styles.todoItemTitle, { color: colors.foreground }]} numberOfLines={1}>
                       {activeIssues[0]?.trackingId ? `${activeIssues[0].trackingId} · ${CATEGORY_LABEL[activeIssues[0].category]}` : "CF-81599-4pbp · Pothole"}
                     </Text>
-                    <Text style={styles.todoItemSubtitle} numberOfLines={1}>
+                    <Text style={[styles.todoItemSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
                       {activeIssues[0]?.description || "Road surface inspection and asphalt leveling"}
                     </Text>
                   </View>
                   <View style={styles.todoTimeBadge}>
                     <Text style={styles.todoTimeText}>2h 30m</Text>
-                    <Ionicons name="time-outline" size={13} color="#60a5fa" />
+                    <Ionicons name="time-outline" size={13} color="#2563eb" />
                   </View>
                 </Pressable>
 
                 <Pressable
-                  style={styles.todoRowItem}
+                  style={[styles.todoRowItem, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                   onPress={() => {
                     if (activeIssues[1]) {
                       router.push({ pathname: "/reports/[id]", params: { id: activeIssues[1].id } });
@@ -409,15 +419,15 @@ export default function Home() {
                 >
                   <View style={[styles.todoRadioRing, { borderColor: "#ef4444" }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.todoItemTitle} numberOfLines={1}>
+                    <Text style={[styles.todoItemTitle, { color: colors.foreground }]} numberOfLines={1}>
                       {activeIssues[1]?.trackingId ? `${activeIssues[1].trackingId} · ${CATEGORY_LABEL[activeIssues[1].category]}` : "Submit Invoice"}
                     </Text>
-                    <Text style={styles.todoItemSubtitle} numberOfLines={1}>
+                    <Text style={[styles.todoItemSubtitle, { color: colors.mutedForeground }]} numberOfLines={1}>
                       {activeIssues[1]?.description || "Emergency storm drain clearing on Main St"}
                     </Text>
                   </View>
                   <View style={styles.todoTimeBadge}>
-                    <Text style={styles.todoTimeText}>15m</Text>
+                    <Text style={[styles.todoTimeText, { color: "#ef4444" }]}>15m</Text>
                     <Ionicons name="time-outline" size={13} color="#ef4444" />
                   </View>
                 </Pressable>
@@ -431,99 +441,94 @@ export default function Home() {
         {/* ------------------------------------------------------------- */}
         {selectedFilter === "reminders" && (
           <>
-            {/* Reminders Hero Alert Card */}
-            <View style={[styles.progressHeroCard, { borderColor: "rgba(244, 63, 94, 0.4)" }]}>
+            <View style={[styles.progressHeroCard, { backgroundColor: colors.surface, borderColor: "rgba(244, 63, 94, 0.4)" }]}>
               <View style={styles.progressTopRow}>
                 <View style={styles.progressTitleRow}>
                   <Ionicons name="notifications" size={18} color="#f43f5e" />
-                  <Text style={styles.progressCardTitle}>Municipal Reminders & Alerts</Text>
+                  <Text style={[styles.progressCardTitle, { color: colors.foreground }]}>Municipal Reminders & Alerts</Text>
                 </View>
                 <View style={[styles.percentBadge, { backgroundColor: "#f43f5e" }]}>
                   <Text style={[styles.percentBadgeText, { color: "#ffffff" }]}>3 Urgent</Text>
                 </View>
               </View>
 
-              <Text style={styles.momentumText}>
+              <Text style={[styles.momentumText, { color: colors.mutedForeground }]}>
                 Active SLA countdowns, resolution quorum votes, and technician arrival times.
               </Text>
             </View>
 
-            {/* Reminders Carousel Cards */}
             <View style={styles.sectionWrap}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.horizontalCardsTrack}
               >
-                {/* Reminder 1: Quorum Vote */}
-                <View style={styles.taskDeckCard}>
+                <View style={[styles.taskDeckCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <View style={styles.avatarStackRow}>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#ec4899" }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#ec4899", borderColor: colors.surface }]}>
                       <Ionicons name="star" size={12} color="#ffffff" />
                     </View>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#a855f7", marginLeft: -8 }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#a855f7", borderColor: colors.surface, marginLeft: -8 }]}>
                       <Ionicons name="people" size={12} color="#ffffff" />
                     </View>
                   </View>
-                  <Text style={styles.taskDeckTitle}>Vote on Resolution</Text>
-                  <Text style={styles.taskDeckSubtitle}>Pothole · 4th Ave Quorum</Text>
+                  <Text style={[styles.taskDeckTitle, { color: colors.foreground }]}>Vote on Resolution</Text>
+                  <Text style={[styles.taskDeckSubtitle, { color: colors.mutedForeground }]}>Pothole · 4th Ave Quorum</Text>
                   <View style={styles.taskDeckTimeRow}>
                     <Ionicons name="time" size={13} color="#f43f5e" />
                     <Text style={[styles.taskDeckTimeText, { color: "#f43f5e", fontWeight: "700" }]}>Closes in 1h 45m</Text>
                   </View>
                   <View style={styles.taskDeckActionsRow}>
                     <Pressable
-                      style={styles.taskDeckPrimaryBtn}
+                      style={[styles.taskDeckPrimaryBtn, { backgroundColor: colors.inverseBackground }]}
                       onPress={() => router.push("/(tabs)/community")}
                     >
-                      <Text style={styles.taskDeckPrimaryBtnText}>Vote Now</Text>
+                      <Text style={[styles.taskDeckPrimaryBtnText, { color: colors.inverseForeground }]}>Vote Now</Text>
                     </Pressable>
                     <Pressable
-                      style={styles.taskDeckSecondaryBtn}
+                      style={[styles.taskDeckSecondaryBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                       onPress={() => router.push("/(tabs)/community")}
                     >
-                      <Text style={styles.taskDeckSecondaryBtnText}>Photos</Text>
+                      <Text style={[styles.taskDeckSecondaryBtnText, { color: colors.foreground }]}>Photos</Text>
                     </Pressable>
                   </View>
                 </View>
 
-                {/* Reminder 2: On-site inspection */}
-                <View style={styles.taskDeckCard}>
+                <View style={[styles.taskDeckCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <View style={styles.avatarStackRow}>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#38bdf8" }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#38bdf8", borderColor: colors.surface }]}>
                       <Ionicons name="construct" size={12} color="#000000" />
                     </View>
                   </View>
-                  <Text style={styles.taskDeckTitle}>Technician On-Site</Text>
-                  <Text style={styles.taskDeckSubtitle}>Public Works · Pothole Fill</Text>
+                  <Text style={[styles.taskDeckTitle, { color: colors.foreground }]}>Technician On-Site</Text>
+                  <Text style={[styles.taskDeckSubtitle, { color: colors.mutedForeground }]}>Public Works · Pothole Fill</Text>
                   <View style={styles.taskDeckTimeRow}>
-                    <Ionicons name="time-outline" size={13} color="#8e8e8e" />
-                    <Text style={styles.taskDeckTimeText}>Today · 3:00 PM</Text>
+                    <Ionicons name="time-outline" size={13} color={colors.mutedForeground} />
+                    <Text style={[styles.taskDeckTimeText, { color: colors.mutedForeground }]}>Today · 3:00 PM</Text>
                   </View>
                   <View style={styles.taskDeckActionsRow}>
                     <Pressable
-                      style={styles.taskDeckPrimaryBtn}
+                      style={[styles.taskDeckPrimaryBtn, { backgroundColor: colors.inverseBackground }]}
                       onPress={() => router.push("/(tabs)/my-reports")}
                     >
-                      <Text style={styles.taskDeckPrimaryBtnText}>View SLA</Text>
+                      <Text style={[styles.taskDeckPrimaryBtnText, { color: colors.inverseForeground }]}>View SLA</Text>
                     </Pressable>
                     <Pressable
-                      style={styles.taskDeckSecondaryBtn}
+                      style={[styles.taskDeckSecondaryBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                       onPress={() => router.push("/(tabs)/assistant")}
                     >
-                      <Text style={styles.taskDeckSecondaryBtnText}>Chat</Text>
+                      <Text style={[styles.taskDeckSecondaryBtnText, { color: colors.foreground }]}>Chat</Text>
                     </Pressable>
                   </View>
                 </View>
               </ScrollView>
             </View>
 
-            {/* Reminders List Card */}
-            <View style={styles.todoListCard}>
+            <View style={[styles.todoListCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.todoHeaderRow}>
                 <View style={styles.todoHeaderTitleRow}>
-                  <Ionicons name="alarm-outline" size={18} color="#ffffff" />
-                  <Text style={styles.todoCardTitle}>Scheduled Alerts</Text>
+                  <Ionicons name="alarm-outline" size={18} color={colors.foreground} />
+                  <Text style={[styles.todoCardTitle, { color: colors.foreground }]}>Scheduled Alerts</Text>
                 </View>
                 <View style={[styles.liveActiveBadge, { backgroundColor: "rgba(244, 63, 94, 0.15)" }]}>
                   <Text style={[styles.liveActiveBadgeText, { color: "#f43f5e" }]}>Active</Text>
@@ -532,13 +537,13 @@ export default function Home() {
 
               <View style={styles.todoItemsWrapper}>
                 <Pressable
-                  style={styles.todoRowItem}
+                  style={[styles.todoRowItem, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                   onPress={() => router.push("/(tabs)/community")}
                 >
                   <View style={[styles.todoRadioRing, { borderColor: "#f43f5e" }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.todoItemTitle}>Inspect Before & After Evidence</Text>
-                    <Text style={styles.todoItemSubtitle}>Streetlight repair completed at 75th St</Text>
+                    <Text style={[styles.todoItemTitle, { color: colors.foreground }]}>Inspect Before & After Evidence</Text>
+                    <Text style={[styles.todoItemSubtitle, { color: colors.mutedForeground }]}>Streetlight repair completed at 75th St</Text>
                   </View>
                   <View style={styles.todoTimeBadge}>
                     <Text style={[styles.todoTimeText, { color: "#f43f5e" }]}>Urgent</Text>
@@ -547,17 +552,17 @@ export default function Home() {
                 </Pressable>
 
                 <Pressable
-                  style={styles.todoRowItem}
+                  style={[styles.todoRowItem, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                   onPress={() => router.push("/(tabs)/report")}
                 >
                   <View style={[styles.todoRadioRing, { borderColor: "#38bdf8" }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.todoItemTitle}>Weekly Neighborhood Civic Audit</Text>
-                    <Text style={styles.todoItemSubtitle}>Report any broken sidewalks or garbage piles</Text>
+                    <Text style={[styles.todoItemTitle, { color: colors.foreground }]}>Weekly Neighborhood Civic Audit</Text>
+                    <Text style={[styles.todoItemSubtitle, { color: colors.mutedForeground }]}>Report any broken sidewalks or garbage piles</Text>
                   </View>
                   <View style={styles.todoTimeBadge}>
-                    <Text style={styles.todoTimeText}>Tomorrow</Text>
-                    <Ionicons name="calendar-outline" size={13} color="#60a5fa" />
+                    <Text style={[styles.todoTimeText, { color: "#2563eb" }]}>Tomorrow</Text>
+                    <Ionicons name="calendar-outline" size={13} color="#2563eb" />
                   </View>
                 </Pressable>
               </View>
@@ -570,12 +575,11 @@ export default function Home() {
         {/* ------------------------------------------------------------- */}
         {selectedFilter === "progress" && (
           <>
-            {/* Progress Hero Velocity Card */}
-            <View style={[styles.progressHeroCard, { borderColor: "rgba(34, 197, 94, 0.4)" }]}>
+            <View style={[styles.progressHeroCard, { backgroundColor: colors.surface, borderColor: "rgba(34, 197, 94, 0.4)" }]}>
               <View style={styles.progressTopRow}>
                 <View style={styles.progressTitleRow}>
                   <Ionicons name="flash" size={18} color="#22c55e" />
-                  <Text style={styles.progressCardTitle}>Civic Resolution Velocity</Text>
+                  <Text style={[styles.progressCardTitle, { color: colors.foreground }]}>Civic Resolution Velocity</Text>
                 </View>
                 <View style={[styles.percentBadge, { backgroundColor: "#22c55e" }]}>
                   <Text style={[styles.percentBadgeText, { color: "#000000" }]}>94% SLA Met</Text>
@@ -584,8 +588,8 @@ export default function Home() {
 
               <View style={styles.progressSubRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.momentumLabel}>Municipal Efficiency</Text>
-                  <Text style={styles.momentumText}>18 verified fixes resolved this month in your area.</Text>
+                  <Text style={[styles.momentumLabel, { color: colors.mutedForeground }]}>Municipal Efficiency</Text>
+                  <Text style={[styles.momentumText, { color: colors.foreground }]}>18 verified fixes resolved this month in your area.</Text>
                 </View>
 
                 <View style={styles.segmentedBar}>
@@ -594,7 +598,9 @@ export default function Home() {
                       key={bar}
                       style={[
                         styles.segmentItem,
-                        bar <= 9 ? styles.segmentFilled : styles.segmentEmpty,
+                        bar <= 9
+                          ? styles.segmentFilled
+                          : [styles.segmentEmpty, { backgroundColor: colors.surfaceMuted }],
                       ]}
                     />
                   ))}
@@ -602,67 +608,63 @@ export default function Home() {
               </View>
             </View>
 
-            {/* Department Velocity Metric Cards */}
             <View style={styles.sectionWrap}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.horizontalCardsTrack}
               >
-                {/* Metric 1: Public Works */}
-                <View style={styles.taskDeckCard}>
+                <View style={[styles.taskDeckCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <View style={styles.avatarStackRow}>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#f59e0b" }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#f59e0b", borderColor: colors.surface }]}>
                       <Ionicons name="construct" size={12} color="#000000" />
                     </View>
                   </View>
-                  <Text style={styles.taskDeckTitle}>Public Works (Roads)</Text>
-                  <Text style={styles.taskDeckSubtitle}>Avg Turnaround: 18.4 Hours</Text>
+                  <Text style={[styles.taskDeckTitle, { color: colors.foreground }]}>Public Works (Roads)</Text>
+                  <Text style={[styles.taskDeckSubtitle, { color: colors.mutedForeground }]}>Avg Turnaround: 18.4 Hours</Text>
                   <View style={styles.taskDeckTimeRow}>
                     <Ionicons name="checkmark-circle" size={13} color="#22c55e" />
                     <Text style={[styles.taskDeckTimeText, { color: "#22c55e" }]}>Within 24h SLA</Text>
                   </View>
                   <View style={styles.taskDeckActionsRow}>
                     <Pressable
-                      style={styles.taskDeckPrimaryBtn}
+                      style={[styles.taskDeckPrimaryBtn, { backgroundColor: colors.inverseBackground }]}
                       onPress={() => router.push("/(tabs)/report")}
                     >
-                      <Text style={styles.taskDeckPrimaryBtnText}>Report Road</Text>
+                      <Text style={[styles.taskDeckPrimaryBtnText, { color: colors.inverseForeground }]}>Report Road</Text>
                     </Pressable>
                   </View>
                 </View>
 
-                {/* Metric 2: Sanitation */}
-                <View style={styles.taskDeckCard}>
+                <View style={[styles.taskDeckCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <View style={styles.avatarStackRow}>
-                    <View style={[styles.avatarCircle, { backgroundColor: "#10b981" }]}>
+                    <View style={[styles.avatarCircle, { backgroundColor: "#10b981", borderColor: colors.surface }]}>
                       <Ionicons name="trash" size={12} color="#000000" />
                     </View>
                   </View>
-                  <Text style={styles.taskDeckTitle}>Sanitation & Waste</Text>
-                  <Text style={styles.taskDeckSubtitle}>Avg Turnaround: 7.2 Hours</Text>
+                  <Text style={[styles.taskDeckTitle, { color: colors.foreground }]}>Sanitation & Waste</Text>
+                  <Text style={[styles.taskDeckSubtitle, { color: colors.mutedForeground }]}>Avg Turnaround: 7.2 Hours</Text>
                   <View style={styles.taskDeckTimeRow}>
                     <Ionicons name="checkmark-circle" size={13} color="#22c55e" />
                     <Text style={[styles.taskDeckTimeText, { color: "#22c55e" }]}>Within 12h SLA</Text>
                   </View>
                   <View style={styles.taskDeckActionsRow}>
                     <Pressable
-                      style={styles.taskDeckPrimaryBtn}
+                      style={[styles.taskDeckPrimaryBtn, { backgroundColor: colors.inverseBackground }]}
                       onPress={() => router.push("/(tabs)/report")}
                     >
-                      <Text style={styles.taskDeckPrimaryBtnText}>Report Waste</Text>
+                      <Text style={[styles.taskDeckPrimaryBtnText, { color: colors.inverseForeground }]}>Report Waste</Text>
                     </Pressable>
                   </View>
                 </View>
               </ScrollView>
             </View>
 
-            {/* Live Progress Stage Breakdown */}
-            <View style={styles.todoListCard}>
+            <View style={[styles.todoListCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={styles.todoHeaderRow}>
                 <View style={styles.todoHeaderTitleRow}>
-                  <Ionicons name="stats-chart" size={18} color="#ffffff" />
-                  <Text style={styles.todoCardTitle}>Active Report Stages</Text>
+                  <Ionicons name="stats-chart" size={18} color={colors.foreground} />
+                  <Text style={[styles.todoCardTitle, { color: colors.foreground }]}>Active Report Stages</Text>
                 </View>
                 <View style={styles.liveActiveBadge}>
                   <Text style={styles.liveActiveBadgeText}>Live</Text>
@@ -671,13 +673,13 @@ export default function Home() {
 
               <View style={styles.todoItemsWrapper}>
                 <Pressable
-                  style={styles.todoRowItem}
+                  style={[styles.todoRowItem, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                   onPress={() => router.push("/(tabs)/my-reports")}
                 >
                   <View style={[styles.todoRadioRing, { borderColor: "#22c55e" }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.todoItemTitle}>CF-81599 · Stage 2/4 (Dispatched)</Text>
-                    <Text style={styles.todoItemSubtitle}>Public Works technicians on-route</Text>
+                    <Text style={[styles.todoItemTitle, { color: colors.foreground }]}>CF-81599 · Stage 2/4 (Dispatched)</Text>
+                    <Text style={[styles.todoItemSubtitle, { color: colors.mutedForeground }]}>Public Works technicians on-route</Text>
                   </View>
                   <View style={styles.todoTimeBadge}>
                     <Text style={[styles.todoTimeText, { color: "#22c55e" }]}>50%</Text>
@@ -685,13 +687,13 @@ export default function Home() {
                 </Pressable>
 
                 <Pressable
-                  style={styles.todoRowItem}
+                  style={[styles.todoRowItem, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                   onPress={() => router.push("/(tabs)/community")}
                 >
                   <View style={[styles.todoRadioRing, { borderColor: "#38bdf8" }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.todoItemTitle}>CF-47804 · Stage 4/4 (Verification)</Text>
-                    <Text style={styles.todoItemSubtitle}>Awaiting community consensus quorum</Text>
+                    <Text style={[styles.todoItemTitle, { color: colors.foreground }]}>CF-47804 · Stage 4/4 (Verification)</Text>
+                    <Text style={[styles.todoItemSubtitle, { color: colors.mutedForeground }]}>Awaiting community consensus quorum</Text>
                   </View>
                   <View style={styles.todoTimeBadge}>
                     <Text style={[styles.todoTimeText, { color: "#38bdf8" }]}>90%</Text>
@@ -702,19 +704,19 @@ export default function Home() {
           </>
         )}
 
-        {/* Quick Report FAB Banner */}
+        {/* Quick Report Banner */}
         <Pressable
-          style={styles.quickReportBanner}
+          style={[styles.quickReportBanner, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={() => router.push("/(tabs)/report")}
         >
-          <View style={styles.fabIconWrap}>
-            <Ionicons name="camera" size={20} color="#000000" />
+          <View style={[styles.fabIconWrap, { backgroundColor: colors.inverseBackground }]}>
+            <Ionicons name="camera" size={20} color={colors.inverseForeground} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.fabBannerTitle}>Report an Issue in 30 Seconds</Text>
-            <Text style={styles.fabBannerSub}>Capture photo, pin on live map, and dispatch city crews.</Text>
+            <Text style={[styles.fabBannerTitle, { color: colors.foreground }]}>Report an Issue in 30 Seconds</Text>
+            <Text style={[styles.fabBannerSub, { color: colors.mutedForeground }]}>Capture photo, pin on live map, and dispatch city crews.</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#ffffff" />
+          <Ionicons name="chevron-forward" size={18} color={colors.foreground} />
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -724,11 +726,9 @@ export default function Home() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContent: {
     paddingHorizontal: spacing[4],
@@ -749,7 +749,6 @@ const styles = StyleSheet.create({
   dateDayText: {
     fontSize: 22,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
     letterSpacing: -0.3,
   },
   redAccentDot: {
@@ -761,18 +760,15 @@ const styles = StyleSheet.create({
   dateMonthText: {
     fontSize: 16,
     fontFamily: fontFamily.regular,
-    color: "#6b7280",
     marginTop: 1,
   },
   bellButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#18181b",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#27272a",
     position: "relative",
   },
   bellBadge: {
@@ -791,29 +787,24 @@ const styles = StyleSheet.create({
   greetingLine1: {
     fontSize: 32,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
     letterSpacing: -0.6,
   },
   greetingLine2: {
     fontSize: 32,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
     letterSpacing: -0.6,
   },
   searchBarContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#121214",
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#27272a",
     paddingHorizontal: spacing[4],
     height: 52,
     justifyContent: "space-between",
   },
   searchInput: {
     flex: 1,
-    color: "#ffffff",
     fontSize: fontSize.sm,
     fontFamily: fontFamily.medium,
   },
@@ -833,30 +824,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: radius.pill,
   },
-  filterPillActive: {
-    backgroundColor: "#ffffff",
-  },
+  filterPillActive: {},
   filterPillInactive: {
-    backgroundColor: "#18181b",
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   filterPillText: {
     fontSize: 13,
     fontFamily: fontFamily.semibold,
   },
-  filterPillTextActive: {
-    color: "#000000",
-  },
-  filterPillTextInactive: {
-    color: "#d4d4d8",
-  },
   progressHeroCard: {
-    backgroundColor: "#121214",
     borderRadius: 24,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#27272a",
     gap: 14,
   },
   progressTopRow: {
@@ -872,7 +851,6 @@ const styles = StyleSheet.create({
   progressCardTitle: {
     fontSize: 15,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   percentBadge: {
     backgroundColor: "#fbbf24",
@@ -893,13 +871,11 @@ const styles = StyleSheet.create({
   momentumLabel: {
     fontSize: 11,
     fontFamily: fontFamily.medium,
-    color: "#8e8e8e",
     textTransform: "uppercase",
   },
   momentumText: {
     fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#d4d4d8",
     marginTop: 2,
     maxWidth: 190,
   },
@@ -916,9 +892,7 @@ const styles = StyleSheet.create({
   segmentFilled: {
     backgroundColor: "#22c55e",
   },
-  segmentEmpty: {
-    backgroundColor: "#27272a",
-  },
+  segmentEmpty: {},
   sectionWrap: {
     marginHorizontal: -spacing[4],
   },
@@ -928,11 +902,9 @@ const styles = StyleSheet.create({
   },
   taskDeckCard: {
     width: 220,
-    backgroundColor: "#121214",
     borderRadius: 22,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#27272a",
     gap: 8,
   },
   avatarStackRow: {
@@ -947,17 +919,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#121214",
   },
   taskDeckTitle: {
     fontSize: 16,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   taskDeckSubtitle: {
     fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
   },
   taskDeckTimeRow: {
     flexDirection: "row",
@@ -967,7 +936,6 @@ const styles = StyleSheet.create({
   taskDeckTimeText: {
     fontSize: 11,
     fontFamily: fontFamily.medium,
-    color: "#a1a1aa",
   },
   taskDeckActionsRow: {
     flexDirection: "row",
@@ -978,36 +946,29 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 34,
     borderRadius: radius.pill,
-    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
   },
   taskDeckPrimaryBtnText: {
     fontSize: 12,
     fontFamily: fontFamily.bold,
-    color: "#000000",
   },
   taskDeckSecondaryBtn: {
     flex: 1,
     height: 34,
     borderRadius: radius.pill,
-    backgroundColor: "#18181b",
     borderWidth: 1,
-    borderColor: "#27272a",
     alignItems: "center",
     justifyContent: "center",
   },
   taskDeckSecondaryBtnText: {
     fontSize: 12,
     fontFamily: fontFamily.medium,
-    color: "#ffffff",
   },
   todoListCard: {
-    backgroundColor: "#121214",
     borderRadius: 24,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#27272a",
     gap: 14,
   },
   todoHeaderRow: {
@@ -1023,7 +984,6 @@ const styles = StyleSheet.create({
   todoCardTitle: {
     fontSize: 15,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   liveActiveBadge: {
     flexDirection: "row",
@@ -1052,12 +1012,10 @@ const styles = StyleSheet.create({
   todoRowItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0a0a0c",
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: "#1e1e24",
     gap: 12,
   },
   todoRadioRing: {
@@ -1069,12 +1027,10 @@ const styles = StyleSheet.create({
   todoItemTitle: {
     fontSize: 13,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   todoItemSubtitle: {
     fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     marginTop: 2,
   },
   todoTimeBadge: {
@@ -1085,35 +1041,30 @@ const styles = StyleSheet.create({
   todoTimeText: {
     fontSize: 11,
     fontFamily: fontFamily.medium,
-    color: "#60a5fa",
+    color: "#2563eb",
   },
   quickReportBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#18181b",
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   fabIconWrap: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
   },
   fabBannerTitle: {
     fontSize: 14,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   fabBannerSub: {
     fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     marginTop: 2,
   },
 });

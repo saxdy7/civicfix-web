@@ -1,7 +1,3 @@
-// Mirrors the design tokens in spec/DESIGN.md and apps/web/src/app/globals.css
-// exactly, so the mobile app reads as the same product as the website: dark,
-// monochrome, with accent color reserved for status/category signal only —
-// never for page chrome or primary actions.
 import { Platform } from "react-native";
 
 export const spacing = {
@@ -33,13 +29,6 @@ export const fontSize = {
   xxxl: 44,
 } as const;
 
-// Inter carries all UI/body copy (loaded via @expo-google-fonts/inter — see
-// app/_layout.tsx's useFonts gate). The web app's dot-matrix display face
-// (BubbledotICG-FinePos) is a licensed CDN webfont with no distributable
-// file to bundle into a native app; spec/DESIGN.md's own documented
-// fallback — "Geist Pixel Circle, monospace" — is honored here via the
-// platform monospace face for display headings, rather than guessing at a
-// substitute we can't verify the license for.
 export const fontFamily = {
   regular: "Inter_400Regular",
   medium: "Inter_500Medium",
@@ -48,7 +37,75 @@ export const fontFamily = {
   display: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }),
 } as const;
 
-export const color = {
+export interface ColorPalette {
+  background: string;
+  backgroundMuted: string;
+  surface: string;
+  surfaceMuted: string;
+  surfaceRaised: string;
+
+  foreground: string;
+  mutedForeground: string;
+  dimForeground: string;
+
+  border: string;
+  borderStrong: string;
+
+  inverseBackground: string;
+  inverseForeground: string;
+  pillDark: string;
+  pillActive: string;
+  pillActiveText: string;
+
+  civicBlue: string;
+  civicBlueSoft: string;
+  civicBlueContrast: string;
+  civicGreen: string;
+  civicGreenSoft: string;
+  civicAmber: string;
+  civicAmberSoft: string;
+  civicRed: string;
+  civicRedSoft: string;
+
+  slate100: string;
+  slate600: string;
+}
+
+export const lightColors: ColorPalette = {
+  background: "#f8fafc",
+  backgroundMuted: "#ffffff",
+  surface: "#ffffff",
+  surfaceMuted: "#f1f5f9",
+  surfaceRaised: "#e2e8f0",
+
+  foreground: "#0f172a",
+  mutedForeground: "#64748b",
+  dimForeground: "#94a3b8",
+
+  border: "#e2e8f0",
+  borderStrong: "#cbd5e1",
+
+  inverseBackground: "#0f172a",
+  inverseForeground: "#ffffff",
+  pillDark: "#f1f5f9",
+  pillActive: "#0f172a",
+  pillActiveText: "#ffffff",
+
+  civicBlue: "#2563eb",
+  civicBlueSoft: "rgba(37, 99, 235, 0.1)",
+  civicBlueContrast: "#ffffff",
+  civicGreen: "#16a34a",
+  civicGreenSoft: "rgba(22, 163, 74, 0.12)",
+  civicAmber: "#d97706",
+  civicAmberSoft: "rgba(217, 119, 6, 0.12)",
+  civicRed: "#dc2626",
+  civicRedSoft: "rgba(220, 38, 38, 0.12)",
+
+  slate100: "#f1f5f9",
+  slate600: "#64748b",
+};
+
+export const darkColors: ColorPalette = {
   background: "#000000",
   backgroundMuted: "#0a0a0b",
   surface: "#111113",
@@ -62,13 +119,12 @@ export const color = {
   border: "rgba(255,255,255,0.12)",
   borderStrong: "rgba(255,255,255,0.24)",
 
-  // The light side — primary buttons, active states, anything that must
-  // pop out of the dark ground.
   inverseBackground: "#ffffff",
   inverseForeground: "#0a0a0a",
   pillDark: "#28282a",
+  pillActive: "#ffffff",
+  pillActiveText: "#000000",
 
-  // Accent tokens: status pills and category signal only.
   civicBlue: "#8fb4ff",
   civicBlueSoft: "rgba(94,138,255,0.16)",
   civicBlueContrast: "#0a0a0a",
@@ -79,9 +135,11 @@ export const color = {
   civicRed: "#ff9a92",
   civicRedSoft: "rgba(248,113,113,0.16)",
 
-  // Legacy aliases kept so existing call sites don't need a mechanical
-  // rename — repointed at the dark-theme equivalents rather than the old
-  // light-theme grays.
   slate100: "#1a1a1d",
   slate600: "#8e8e8e",
-} as const;
+};
+
+// Default is White / Light Theme per user request!
+export const color: ColorPalette = lightColors;
+
+export type ThemeType = "light" | "dark";

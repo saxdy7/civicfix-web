@@ -17,9 +17,10 @@ import { EmptyState } from "../../components/EmptyState";
 import { IssueChat } from "../../components/IssueChat";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useAuth } from "../../lib/auth-context";
+import { useTheme } from "../../lib/theme-context";
 import { deleteIssue, fetchMyIssueById } from "../../lib/repositories/issues";
 import { CATEGORY_LABEL, STATUS_LABEL, STATUS_SHORT_LABEL } from "../../lib/status";
-import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
+import { fontFamily, fontSize, radius, spacing } from "../../lib/theme";
 import type { Issue, IssueStatus } from "../../lib/types";
 
 interface LifecycleStage {
@@ -42,8 +43,8 @@ const LIFECYCLE_STAGES: LifecycleStage[] = [
     key: "dispatch",
     title: "2. Department Dispatch",
     subtitle: "Assigned to municipal field crew with active SLA countdown.",
-    icon: "send",
-    statusMatch: ["triaged", "assigned", "in_progress", "pending_verification", "resolved"],
+    icon: "navigate",
+    statusMatch: ["assigned", "in_progress", "pending_verification", "resolved"],
   },
   {
     key: "repair",
@@ -61,67 +62,81 @@ const LIFECYCLE_STAGES: LifecycleStage[] = [
   },
 ];
 
-export default function ReportDetailScreen() {
+export default function ReportStatus() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const [issue, setIssue] = useState<Issue | null | undefined>(undefined);
+  const { colors, isDark } = useTheme();
+  const [issue, setIssue] = useState<Issue | null>(null);
+  const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [showChat, setShowChat] = useState(false);
 
+  const load = useCallback(async () => {
+    if (!id || !user) return;
+    setIssue(await fetchMyIssueById(id, user.id));
+  }, [id, user]);
+
   useFocusEffect(
     useCallback(() => {
-      if (!user || !id) return;
-      fetchMyIssueById(id, user.id).then(setIssue);
-    }, [id, user]),
+      let active = true;
+      setLoading(true);
+      load().finally(() => active && setLoading(false));
+      return () => {
+        active = false;
+      };
+    }, [load]),
   );
 
   const confirmDelete = () => {
-    if (!issue) return;
     Alert.alert(
       "Delete Report?",
-      `Are you sure you want to delete report ${issue.trackingId}? This will cancel and remove your submission.`,
+      "Are you sure you want to delete this civic report? This cannot be undone.",
       [
-        { text: "Keep Report", style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
+            if (!id || !user) return;
             setDeleting(true);
-            const { error: delErr } = await deleteIssue(issue.id);
-            if (delErr) {
-              Alert.alert("Error", delErr);
-              setDeleting(false);
-            } else {
-              router.push("/(tabs)/my-reports");
+            const res = await deleteIssue(id, user.id);
+            setDeleting(false);
+            if (res && "error" in res && res.error) {
+              Alert.alert("Error", res.error);
+              return;
             }
+            router.replace("/(tabs)/my-reports");
           },
         },
       ],
     );
   };
 
-  if (issue === undefined) {
+  if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator color="#ffffff" size="large" />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={["top"]}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={colors.foreground} />
+        </View>
       </SafeAreaView>
     );
   }
 
-  if (!issue || !user) {
+  if (!issue) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <EmptyState title="Report not found" description="This report may have been removed or deleted." />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={["top"]}>
+        <EmptyState
+          title="Report Not Found"
+          description="This report may have been deleted or does not belong to your account."
+          actionLabel="Go to My Reports"
+          onAction={() => router.replace("/(tabs)/my-reports")}
+        />
       </SafeAreaView>
     );
   }
 
-  // Calculate which stages are completed, active, or upcoming
-  const getStageState = (stageIndex: number) => {
-    const stage = LIFECYCLE_STAGES[stageIndex];
-    const isPastOrCurrent = stage.statusMatch.includes(issue.status);
-
+  const getStageState = (stageIndex: number): "completed" | "active" | "pending" => {
     if (issue.status === "resolved") {
       return "completed";
     }
@@ -130,7 +145,6 @@ export default function ReportDetailScreen() {
       return stageIndex === 0 ? "completed" : "pending";
     }
 
-    // Determine exact active index based on status
     let activeIdx = 0;
     if (issue.status === "reported") activeIdx = 0;
     else if (issue.status === "triaged" || issue.status === "assigned") activeIdx = 1;
@@ -143,44 +157,47 @@ export default function ReportDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={["top"]}>
       <ScrollView
-        style={styles.scrollContainer}
+        style={[styles.scrollContainer, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Top Navigation Header */}
         <View style={styles.navHeader}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={20} color="#ffffff" />
-            <Text style={styles.backButtonText}>Back</Text>
+          <Pressable
+            style={[styles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={18} color={colors.foreground} />
+            <Text style={[styles.backButtonText, { color: colors.foreground }]}>Back</Text>
           </Pressable>
-          <Text style={styles.headerTitle}>Report Status</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>Report Status</Text>
           <View style={{ width: 60 }} />
         </View>
 
         {/* Report ID & Badge Card */}
-        <View style={styles.reportSummaryCard}>
+        <View style={[styles.reportSummaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.summaryTopRow}>
-            <Text style={styles.trackingIdText}>{issue.trackingId}</Text>
+            <Text style={[styles.trackingIdText, { color: colors.foreground }]}>{issue.trackingId}</Text>
             <StatusBadge status={issue.status} />
           </View>
-          <Text style={styles.statusSubhead}>{STATUS_LABEL[issue.status]}</Text>
-          <Text style={styles.metaRow}>
+          <Text style={[styles.statusSubhead, { color: colors.foreground }]}>{STATUS_LABEL[issue.status]}</Text>
+          <Text style={[styles.metaRow, { color: colors.mutedForeground }]}>
             {CATEGORY_LABEL[issue.category]} · {issue.neighborhood}
           </Text>
-          <Text style={styles.descriptionText}>"{issue.description}"</Text>
+          <Text style={[styles.descriptionText, { color: colors.foreground }]}>"{issue.description}"</Text>
         </View>
 
         {/* Section Heading */}
         <View style={styles.trackHeaderSection}>
-          <Text style={styles.trackSectionTitle}>Resolution Track</Text>
-          <Text style={styles.trackSectionSub}>
+          <Text style={[styles.trackSectionTitle, { color: colors.foreground }]}>Resolution Track</Text>
+          <Text style={[styles.trackSectionSub, { color: colors.mutedForeground }]}>
             Live municipal SLA pipeline and verification milestones
           </Text>
         </View>
 
-        {/* VERTICAL STEPPER TRACK (Exact Pinterest pattern) */}
+        {/* VERTICAL STEPPER TRACK */}
         <View style={styles.stepperContainer}>
           {LIFECYCLE_STAGES.map((stage, idx) => {
             const state = getStageState(idx);
@@ -189,51 +206,46 @@ export default function ReportDetailScreen() {
 
             return (
               <View key={stage.key} style={styles.stepperItemRow}>
-                {/* Left Track Column: Node Circle + Vertical Connecting Line */}
+                {/* Left Track Column */}
                 <View style={styles.trackColumn}>
-                  {/* Circle Node */}
                   {state === "completed" ? (
-                    <View style={styles.nodeCircleCompleted}>
-                      <Ionicons name="checkmark" size={16} color="#000000" />
+                    <View style={[styles.nodeCircleCompleted, { backgroundColor: colors.inverseBackground }]}>
+                      <Ionicons name="checkmark" size={16} color={colors.inverseForeground} />
                     </View>
                   ) : state === "active" ? (
-                    <View style={styles.nodeCircleActive}>
-                      <Ionicons name={stage.icon} size={15} color="#ffffff" />
+                    <View style={[styles.nodeCircleActive, { backgroundColor: colors.inverseBackground }]}>
+                      <Ionicons name={stage.icon} size={15} color={colors.inverseForeground} />
                     </View>
                   ) : (
-                    <View style={styles.nodeCirclePending}>
-                      <Ionicons name={stage.icon} size={14} color="#64748b" />
+                    <View style={[styles.nodeCirclePending, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                      <Ionicons name={stage.icon} size={14} color={colors.dimForeground} />
                     </View>
                   )}
 
-                  {/* Vertical Line to next stage */}
                   {!isLast && (
                     <View
                       style={[
                         styles.trackLine,
                         state === "completed" && (nextState === "completed" || nextState === "active")
-                          ? styles.trackLineSolid
-                          : styles.trackLineMuted,
+                          ? [styles.trackLineSolid, { backgroundColor: colors.foreground }]
+                          : [styles.trackLineMuted, { backgroundColor: colors.border }],
                       ]}
                     />
                   )}
                 </View>
 
-                {/* Right Content Column: Stage Title + Subtitle */}
+                {/* Right Content Column */}
                 <View style={[styles.stageContentCol, isLast ? { paddingBottom: 0 } : null]}>
                   <Text
                     style={[
                       styles.stageTitle,
-                      state === "completed" || state === "active"
-                        ? styles.stageTitleActive
-                        : styles.stageTitlePending,
+                      { color: state === "completed" || state === "active" ? colors.foreground : colors.mutedForeground },
                     ]}
                   >
                     {stage.title}
                   </Text>
-                  <Text style={styles.stageSubtitle}>{stage.subtitle}</Text>
+                  <Text style={[styles.stageSubtitle, { color: colors.mutedForeground }]}>{stage.subtitle}</Text>
 
-                  {/* If active, display live badge */}
                   {state === "active" ? (
                     <View style={styles.currentActiveBadge}>
                       <View style={styles.liveGreenDot} />
@@ -246,31 +258,28 @@ export default function ReportDetailScreen() {
           })}
         </View>
 
-        {/* BOTTOM DOCKED CARD (Matching inspiration bottom sheet) */}
-        <View style={styles.bottomCardContainer}>
-          <Text style={styles.bottomCardHeader}>⚡ Guaranteed Municipal SLA</Text>
-          <Text style={styles.bottomCardSub}>
+        {/* BOTTOM DOCKED CARD */}
+        <View style={[styles.bottomCardContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.bottomCardHeader, { color: colors.foreground }]}>⚡ Guaranteed Municipal SLA</Text>
+          <Text style={[styles.bottomCardSub, { color: colors.mutedForeground }]}>
             Estimated Resolution: Within 24–48 Hours
           </Text>
 
-          {/* Action Button */}
           <Pressable
-            style={styles.bottomPrimaryBtn}
+            style={[styles.bottomPrimaryBtn, { backgroundColor: colors.inverseBackground }]}
             onPress={() => setShowChat((v) => !v)}
           >
-            <Ionicons name={showChat ? "chevron-up" : "chatbubble-ellipses"} size={18} color="#000000" />
-            <Text style={styles.bottomPrimaryBtnText}>
+            <Ionicons name={showChat ? "chevron-up" : "chatbubble-ellipses"} size={18} color={colors.inverseForeground} />
+            <Text style={[styles.bottomPrimaryBtnText, { color: colors.inverseForeground }]}>
               {showChat ? "Hide Department Chat" : "Message Department Dispatch"}
             </Text>
           </Pressable>
 
-          {/* Assurance Tag */}
           <View style={styles.assuranceRow}>
-            <Ionicons name="checkmark-circle" size={14} color="#22c55e" />
-            <Text style={styles.assuranceText}>100% Transparent Municipal SLA · Verified Proof</Text>
+            <Ionicons name="checkmark-circle" size={14} color="#16a34a" />
+            <Text style={[styles.assuranceText, { color: colors.mutedForeground }]}>100% Transparent Municipal SLA · Verified Proof</Text>
           </View>
 
-          {/* Delete Action */}
           <Pressable
             style={styles.deleteLinkBtn}
             disabled={deleting}
@@ -285,8 +294,8 @@ export default function ReportDetailScreen() {
 
         {/* Department Chat Drawer */}
         {showChat && (
-          <View style={styles.chatDrawerCard}>
-            <Text style={styles.chatDrawerTitle}>Live Department Dispatch</Text>
+          <View style={[styles.chatDrawerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.chatDrawerTitle, { color: colors.foreground }]}>Live Department Dispatch</Text>
             <IssueChat issueId={issue.id} currentUserId={user.id} senderRole="resident" />
           </View>
         )}
@@ -298,57 +307,48 @@ export default function ReportDetailScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#000000",
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#000000",
-    alignItems: "center",
-    justifyContent: "center",
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContent: {
     paddingHorizontal: spacing[4],
-    paddingTop: spacing[1],
+    paddingTop: spacing[2],
     paddingBottom: spacing[8] + 20,
     gap: spacing[4],
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   navHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: spacing[2],
+    paddingVertical: spacing[1],
   },
   backButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#18181b",
-    paddingVertical: 6,
     paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   backButtonText: {
-    color: "#ffffff",
-    fontSize: fontSize.xs,
-    fontFamily: fontFamily.medium,
+    fontSize: 13,
+    fontFamily: fontFamily.semibold,
   },
   headerTitle: {
-    fontSize: fontSize.md,
+    fontSize: 17,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   reportSummaryCard: {
-    backgroundColor: "#121214",
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#27272a",
     gap: 6,
   },
   summaryTopRow: {
@@ -357,50 +357,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   trackingIdText: {
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
   statusSubhead: {
-    fontSize: fontSize.sm,
+    fontSize: 14,
     fontFamily: fontFamily.semibold,
-    color: "#8fb4ff",
   },
   metaRow: {
-    fontSize: fontSize.xs,
+    fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
   },
   descriptionText: {
     fontSize: 13,
     fontFamily: fontFamily.regular,
-    color: "#d4d4d8",
     fontStyle: "italic",
     marginTop: 4,
   },
   trackHeaderSection: {
-    paddingTop: spacing[2],
     gap: 2,
+    marginTop: spacing[2],
   },
   trackSectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
-    letterSpacing: -0.3,
   },
   trackSectionSub: {
-    fontSize: fontSize.xs,
+    fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
   },
   stepperContainer: {
-    backgroundColor: "#0a0a0c",
-    borderRadius: 24,
-    paddingVertical: spacing[5],
-    paddingHorizontal: spacing[4],
-    borderWidth: 1,
-    borderColor: "#1e1e24",
+    paddingLeft: 4,
+    marginTop: spacing[2],
   },
   stepperItemRow: {
     flexDirection: "row",
@@ -413,79 +402,59 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 10,
   },
   nodeCircleActive: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#18181b",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#ffffff",
-    zIndex: 10,
+    borderColor: "#22c55e",
   },
   nodeCirclePending: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#121214",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#27272a",
-    zIndex: 10,
   },
   trackLine: {
-    width: 3,
+    width: 2,
     flex: 1,
-    minHeight: 48,
-    marginVertical: -2,
+    minHeight: 44,
+    marginVertical: 4,
   },
-  trackLineSolid: {
-    backgroundColor: "#ffffff",
-  },
-  trackLineMuted: {
-    backgroundColor: "#27272a",
-  },
+  trackLineSolid: {},
+  trackLineMuted: {},
   stageContentCol: {
     flex: 1,
-    paddingLeft: spacing[3],
-    paddingBottom: spacing[5],
-    justifyContent: "flex-start",
+    paddingLeft: 12,
+    paddingBottom: 28,
+    gap: 3,
   },
   stageTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: fontFamily.bold,
-    marginTop: 6,
-  },
-  stageTitleActive: {
-    color: "#ffffff",
-  },
-  stageTitlePending: {
-    color: "#64748b",
   },
   stageSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
-    lineHeight: 16,
-    marginTop: 3,
+    lineHeight: 15,
   },
   currentActiveBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     backgroundColor: "rgba(34, 197, 94, 0.12)",
-    paddingVertical: 4,
+    paddingVertical: 3,
     paddingHorizontal: 8,
     borderRadius: radius.pill,
     alignSelf: "flex-start",
-    marginTop: 6,
+    marginTop: 4,
   },
   liveGreenDot: {
     width: 6,
@@ -495,65 +464,54 @@ const styles = StyleSheet.create({
   },
   liveActiveText: {
     fontSize: 10,
-    fontFamily: fontFamily.semibold,
+    fontFamily: fontFamily.bold,
     color: "#22c55e",
   },
   bottomCardContainer: {
-    backgroundColor: "#121214",
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 26,
+    padding: 18,
     borderWidth: 1,
-    borderColor: "#27272a",
-    alignItems: "center",
-    gap: spacing[2],
-    marginTop: spacing[2],
+    gap: 10,
+    marginTop: spacing[3],
   },
   bottomCardHeader: {
-    fontSize: 17,
+    fontSize: 15,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
-    textAlign: "center",
   },
   bottomCardSub: {
     fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
-    textAlign: "center",
-    marginBottom: spacing[2],
   },
   bottomPrimaryBtn: {
-    width: "100%",
-    height: 50,
-    borderRadius: radius.pill,
-    backgroundColor: "#ffffff",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
+    height: 48,
+    borderRadius: radius.pill,
+    marginTop: 4,
   },
   bottomPrimaryBtnText: {
-    fontSize: 15,
+    fontSize: 13,
     fontFamily: fontFamily.bold,
-    color: "#000000",
   },
   assuranceRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginTop: spacing[2],
+    justifyContent: "center",
+    paddingTop: 2,
   },
   assuranceText: {
     fontSize: 11,
     fontFamily: fontFamily.medium,
-    color: "#8e8e8e",
   },
   deleteLinkBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 4,
-    marginTop: spacing[2],
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingTop: 4,
   },
   deleteLinkText: {
     fontSize: 12,
@@ -561,16 +519,13 @@ const styles = StyleSheet.create({
     color: "#ef4444",
   },
   chatDrawerCard: {
-    backgroundColor: "#121214",
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#27272a",
-    gap: spacing[3],
+    gap: 12,
   },
   chatDrawerTitle: {
-    fontSize: fontSize.md,
+    fontSize: 15,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
 });

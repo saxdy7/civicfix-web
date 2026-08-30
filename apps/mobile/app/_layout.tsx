@@ -17,39 +17,72 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { AuthProvider } from "../lib/auth-context";
 import { clerkTokenCache } from "../lib/clerk-token-cache";
 import { convexClient, isConvexConfigured } from "../lib/convex-client";
-import { color, fontFamily } from "../lib/theme";
+import { ThemeProvider, useTheme } from "../lib/theme-context";
+import { fontFamily } from "../lib/theme";
 
 const clerkPublishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
-/**
- * Clerk owns identity; when it's configured, Convex subscribes to it via
- * ConvexProviderWithClerk so every query/mutation automatically carries the
- * signed-in user's Clerk JWT (same pattern as apps/web's
- * ConvexClerkProvider.tsx). Requires a JWT template named "convex" in the
- * Clerk dashboard — already set up for the web app's use of the same Clerk
- * instance. Without Clerk configured at all, children render with no auth
- * provider chain beyond AuthProvider's own demo fallback.
- */
 function BackendProviders({ children }: PropsWithChildren) {
-  if (!clerkPublishableKey) return <AuthProvider>{children}</AuthProvider>;
+  if (!clerkPublishableKey) {
+    return (
+      <ThemeProvider>
+        <AuthProvider>{children}</AuthProvider>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={clerkTokenCache}>
       {isConvexConfigured && convexClient ? (
         <ConvexProviderWithClerk client={convexClient} useAuth={useClerkAuth}>
-          <AuthProvider>{children}</AuthProvider>
+          <ThemeProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </ThemeProvider>
         </ConvexProviderWithClerk>
       ) : (
-        <AuthProvider>{children}</AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
       )}
     </ClerkProvider>
   );
 }
 
-// Keep the native splash up until Inter is loaded — the custom animated
-// splash screen (app/index.tsx) takes over from there while the session is
-// being checked, so the user is never looking at a blank frame.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+function RootNavigator() {
+  const { colors, isDark } = useTheme();
+
+  return (
+    <>
+      <StatusBar style={isDark ? "light" : "dark"} />
+      <Stack
+        screenOptions={{
+          headerBackTitle: "Back",
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.foreground,
+          headerTitleStyle: { fontFamily: fontFamily.semibold, color: colors.foreground },
+          headerShadowVisible: false,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="landing" options={{ headerShown: false }} />
+        <Stack.Screen name="sign-in" options={{ headerShown: false }} />
+        <Stack.Screen name="forgot-password" options={{ title: "Reset password" }} />
+        <Stack.Screen name="staff-request" options={{ title: "Staff access" }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="report/confirmation" options={{ headerShown: false }} />
+        <Stack.Screen name="reports/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
+        <Stack.Screen name="assignments/[id]/index" options={{ title: "Assignment" }} />
+        <Stack.Screen name="assignments/[id]/evidence" options={{ title: "Resolution evidence" }} />
+        <Stack.Screen name="assignments/[id]/navigate" options={{ title: "Navigate" }} />
+        <Stack.Screen name="sync-queue" options={{ title: "Offline sync queue" }} />
+      </Stack>
+    </>
+  );
+}
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -73,34 +106,10 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: color.background }} onLayout={onLayoutRootView}>
+    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
       <SafeAreaProvider>
         <BackendProviders>
-          <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerBackTitle: "Back",
-              headerStyle: { backgroundColor: color.background },
-              headerTintColor: color.foreground,
-              headerTitleStyle: { fontFamily: fontFamily.semibold, color: color.foreground },
-              headerShadowVisible: false,
-              contentStyle: { backgroundColor: color.background },
-            }}
-          >
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="landing" options={{ headerShown: false }} />
-            <Stack.Screen name="sign-in" options={{ headerShown: false }} />
-            <Stack.Screen name="forgot-password" options={{ title: "Reset password" }} />
-            <Stack.Screen name="staff-request" options={{ title: "Staff access" }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="report/confirmation" options={{ headerShown: false }} />
-            <Stack.Screen name="reports/[id]" options={{ headerShown: false }} />
-            <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
-            <Stack.Screen name="assignments/[id]/index" options={{ title: "Assignment" }} />
-            <Stack.Screen name="assignments/[id]/evidence" options={{ title: "Resolution evidence" }} />
-            <Stack.Screen name="assignments/[id]/navigate" options={{ title: "Navigate" }} />
-            <Stack.Screen name="sync-queue" options={{ title: "Offline sync queue" }} />
-          </Stack>
+          <RootNavigator />
         </BackendProviders>
       </SafeAreaProvider>
     </GestureHandlerRootView>

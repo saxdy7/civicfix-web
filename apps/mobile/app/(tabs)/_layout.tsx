@@ -3,10 +3,12 @@ import { Redirect, Tabs } from "expo-router";
 import { StyleSheet } from "react-native";
 
 import { useAuth } from "../../lib/auth-context";
-import { color, fontFamily, fontSize } from "../../lib/theme";
+import { useTheme } from "../../lib/theme-context";
+import { fontFamily, fontSize } from "../../lib/theme";
 
 export default function TabsLayout() {
   const { user } = useAuth();
+  const { colors } = useTheme();
 
   if (!user) return <Redirect href="/sign-in" />;
 
@@ -15,19 +17,14 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: color.foreground,
-        tabBarInactiveTintColor: color.dimForeground,
+        tabBarActiveTintColor: colors.foreground,
+        tabBarInactiveTintColor: colors.mutedForeground,
         tabBarStyle: {
-          backgroundColor: color.background,
-          borderTopColor: color.border,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
         },
         tabBarLabelStyle: { fontFamily: fontFamily.medium, fontSize: fontSize.xs },
-        // Every tab screen renders its own cinematic heading inside
-        // ScreenContainer (whose SafeAreaView already reserves the top
-        // inset) — a native header here would double that top spacing,
-        // which is exactly the large empty gap seen under "Home"/"Report"/
-        // "My reports" in review. Custom headings replace it instead.
         headerShown: false,
       }}
     >

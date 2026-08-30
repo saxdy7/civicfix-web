@@ -7,10 +7,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "../../components/EmptyState";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useAuth } from "../../lib/auth-context";
+import { useTheme } from "../../lib/theme-context";
 import { castCommunityVote, fetchCommunityFeed, fetchMyVotes, type CommunityFeedItem, type MyVote } from "../../lib/repositories/community";
-import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
+import { fontFamily, fontSize, radius, spacing } from "../../lib/theme";
 
 function VoteRow({ item, myVote, onVoted }: { item: CommunityFeedItem; myVote: MyVote | null; onVoted: (vote: MyVote) => void }) {
+  const { colors } = useTheme();
   const [comment, setComment] = useState(myVote?.comment ?? "");
   const [busy, setBusy] = useState<"completed" | "needs_work" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,11 +33,11 @@ function VoteRow({ item, myVote, onVoted }: { item: CommunityFeedItem; myVote: M
   };
 
   return (
-    <View style={styles.voteCard}>
+    <View style={[styles.voteCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.rowBetween}>
         <View>
-          <Text style={styles.tracking}>{item.trackingId}</Text>
-          <Text style={styles.meta}>
+          <Text style={[styles.tracking, { color: colors.foreground }]}>{item.trackingId}</Text>
+          <Text style={[styles.meta, { color: colors.mutedForeground }]}>
             {item.categoryLabel} · {item.neighborhood}
           </Text>
         </View>
@@ -44,87 +46,99 @@ function VoteRow({ item, myVote, onVoted }: { item: CommunityFeedItem; myVote: M
 
       <View style={styles.photoRow}>
         <View style={styles.photoCol}>
-          <Text style={styles.photoLabel}>Before</Text>
+          <Text style={[styles.photoLabel, { color: colors.mutedForeground }]}>Before</Text>
           {item.beforePhotoUrl ? (
             <Image source={{ uri: item.beforePhotoUrl }} style={styles.photo} />
           ) : (
-            <View style={styles.photoPlaceholder}>
-              <Text style={styles.placeholderText}>No photo</Text>
+            <View style={[styles.photoPlaceholder, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+              <Text style={[styles.placeholderText, { color: colors.dimForeground }]}>No photo</Text>
             </View>
           )}
         </View>
         <View style={styles.photoCol}>
-          <Text style={styles.photoLabel}>After</Text>
+          <Text style={[styles.photoLabel, { color: colors.mutedForeground }]}>After</Text>
           {item.afterPhotoUrl ? (
             <Image source={{ uri: item.afterPhotoUrl }} style={styles.photo} />
           ) : (
-            <View style={styles.photoPlaceholder}>
-              <Text style={styles.placeholderText}>No photo</Text>
+            <View style={[styles.photoPlaceholder, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+              <Text style={[styles.placeholderText, { color: colors.dimForeground }]}>No photo</Text>
             </View>
           )}
         </View>
       </View>
 
-      {item.completionNote ? (
-        <Text style={styles.completionNote}>
-          <Text style={{ fontFamily: fontFamily.semibold, color: "#ffffff" }}>Field note: </Text>
-          {item.completionNote}
-        </Text>
-      ) : null}
+      <Text style={[styles.description, { color: colors.foreground }]}>{item.description}</Text>
 
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${completedPct}%` }]} />
+      {/* Progress Bar */}
+      <View style={styles.progressSection}>
+        <View style={styles.rowBetween}>
+          <Text style={[styles.progressLabel, { color: colors.mutedForeground }]}>Community consensus</Text>
+          <Text style={[styles.progressValue, { color: colors.foreground }]}>
+            {completedPct}% verified ({total} {total === 1 ? "vote" : "votes"})
+          </Text>
+        </View>
+        <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
+          <View style={[styles.fill, { width: `${completedPct}%` }]} />
+        </View>
       </View>
-      <Text style={styles.progressLabel}>
-        {item.completedCount} confirmed · {item.needsWorkCount} needs work
-      </Text>
 
-      {item.status === "resolved" ? (
-        <View style={styles.verifiedSuccessBadge}>
-          <Ionicons name="checkmark-circle" size={14} color="#22c55e" />
-          <Text style={styles.resolvedNote}>
-            Verified by Community Quorum on {item.verifiedAt ? new Date(item.verifiedAt).toLocaleDateString() : "recent"}
+      {/* Comment Input */}
+      {!myVote && (
+        <TextInput
+          style={[styles.commentInput, { backgroundColor: colors.surfaceMuted, borderColor: colors.border, color: colors.foreground }]}
+          placeholder="Add optional note for the neighborhood…"
+          placeholderTextColor={colors.dimForeground}
+          value={comment}
+          onChangeText={setComment}
+          maxLength={500}
+        />
+      )}
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      {/* Vote Actions */}
+      {myVote ? (
+        <View style={[styles.votedBadge, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+          <Ionicons
+            name={myVote.vote === "completed" ? "checkmark-circle" : "close-circle"}
+            size={18}
+            color={myVote.vote === "completed" ? "#22c55e" : "#ef4444"}
+          />
+          <Text style={[styles.votedText, { color: colors.foreground }]}>
+            You voted: {myVote.vote === "completed" ? "Looks Fixed" : "Needs Work"}
           </Text>
         </View>
       ) : (
-        <View style={{ gap: 8, marginTop: 4 }}>
-          {myVote ? (
-            <Text style={styles.votedNote}>
-              You voted: <Text style={{ fontFamily: fontFamily.bold, color: "#ffffff" }}>{myVote.vote === "completed" ? "Work completed 👍" : "Still needs work 👎"}</Text>
-            </Text>
-          ) : null}
-          <TextInput
-            style={styles.commentBox}
-            placeholder="Optional verification note or comment..."
-            placeholderTextColor="#8e8e8e"
-            value={comment}
-            onChangeText={setComment}
-            multiline
-          />
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          <View style={styles.actions}>
-            <Pressable
-              style={[styles.voteActionBtn, { backgroundColor: "#ffffff" }]}
-              disabled={busy !== null}
-              onPress={() => handleVote("completed")}
-            >
-              <Ionicons name="thumbs-up" size={14} color="#000000" />
-              <Text style={[styles.voteActionBtnText, { color: "#000000" }]}>
-                {busy === "completed" ? "Saving…" : "Looks Great"}
-              </Text>
-            </Pressable>
+        <View style={styles.voteButtonsRow}>
+          <Pressable
+            style={[styles.voteBtn, styles.voteBtnPositive, busy !== null && styles.voteBtnDisabled]}
+            disabled={busy !== null}
+            onPress={() => handleVote("completed")}
+          >
+            {busy === "completed" ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={16} color="#ffffff" />
+                <Text style={styles.voteBtnPositiveText}>Looks Fixed</Text>
+              </>
+            )}
+          </Pressable>
 
-            <Pressable
-              style={[styles.voteActionBtn, { backgroundColor: "#18181b", borderWidth: 1, borderColor: "#27272a" }]}
-              disabled={busy !== null}
-              onPress={() => handleVote("needs_work")}
-            >
-              <Ionicons name="thumbs-down" size={14} color="#ffffff" />
-              <Text style={[styles.voteActionBtnText, { color: "#ffffff" }]}>
-                {busy === "needs_work" ? "Saving…" : "Incomplete"}
-              </Text>
-            </Pressable>
-          </View>
+          <Pressable
+            style={[styles.voteBtn, styles.voteBtnNegative, busy !== null && styles.voteBtnDisabled]}
+            disabled={busy !== null}
+            onPress={() => handleVote("needs_work")}
+          >
+            {busy === "needs_work" ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <>
+                <Ionicons name="close" size={16} color="#ffffff" />
+                <Text style={styles.voteBtnNegativeText}>Needs Work</Text>
+              </>
+            )}
+          </Pressable>
         </View>
       )}
     </View>
@@ -133,14 +147,17 @@ function VoteRow({ item, myVote, onVoted }: { item: CommunityFeedItem; myVote: M
 
 export default function Community() {
   const { user } = useAuth();
+  const { colors } = useTheme();
   const [feed, setFeed] = useState<CommunityFeedItem[]>([]);
-  const [myVotes, setMyVotes] = useState<Map<string, MyVote>>(new Map());
+  const [myVotes, setMyVotes] = useState<Record<string, MyVote>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    if (!user) return;
-    const [items, votes] = await Promise.all([fetchCommunityFeed(), fetchMyVotes(user.id)]);
+    const [items, votes] = await Promise.all([
+      fetchCommunityFeed(),
+      user ? fetchMyVotes(user.id) : Promise.resolve({}),
+    ]);
     setFeed(items);
     setMyVotes(votes);
   }, [user]);
@@ -162,40 +179,57 @@ export default function Community() {
     setRefreshing(false);
   };
 
+  const handleVoted = (issueId: string, vote: MyVote) => {
+    setMyVotes((prev) => ({ ...prev, [issueId]: vote }));
+    setFeed((prev) =>
+      prev.map((item) => {
+        if (item.id !== issueId) return item;
+        return {
+          ...item,
+          completedCount: vote.vote === "completed" ? item.completedCount + 1 : item.completedCount,
+          needsWorkCount: vote.vote === "needs_work" ? item.needsWorkCount + 1 : item.needsWorkCount,
+        };
+      }),
+    );
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={["top"]}>
       <ScrollView
-        style={styles.scrollContainer}
+        style={[styles.scrollContainer, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffffff" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
         }
       >
-        <View style={styles.topHeaderWrap}>
-          <Text style={styles.pageTitle}>Community Consensus</Text>
-          <Text style={styles.pageSubtitle}>
-            Inspect Before & After photo evidence submitted by municipal field crews and certify resolution.
+        <View style={styles.pageHeader}>
+          <Text style={[styles.pageTitle, { color: colors.foreground }]}>Community Feed</Text>
+          <Text style={[styles.pageSubtitle, { color: colors.mutedForeground }]}>
+            Review municipal repairs and cast consensus votes.
           </Text>
         </View>
 
-        {loading ? (
-          <ActivityIndicator color="#ffffff" style={{ marginTop: spacing[6] }} />
+        {loading && !refreshing ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={colors.foreground} />
+          </View>
         ) : feed.length === 0 ? (
           <EmptyState
-            icon="people-outline"
-            title="Nothing to verify yet"
-            description="Reports move here once field evidence has been submitted by municipal workers."
+            title="No items awaiting verification"
+            description="When municipal field crews resolve reported issues, Before & After evidence will appear here for community consensus."
           />
         ) : (
-          feed.map((item) => (
-            <VoteRow
-              key={item.id}
-              item={item}
-              myVote={myVotes.get(item.id) ?? null}
-              onVoted={(vote) => setMyVotes((prev) => new Map(prev).set(item.id, vote))}
-            />
-          ))
+          <View style={styles.feedList}>
+            {feed.map((item) => (
+              <VoteRow
+                key={item.id}
+                item={item}
+                myVote={myVotes[item.id] ?? null}
+                onVoted={(vote) => handleVoted(item.id, vote)}
+              />
+            ))}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -205,11 +239,9 @@ export default function Community() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContent: {
     paddingHorizontal: spacing[4],
@@ -217,28 +249,31 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[8] + 20,
     gap: spacing[4],
   },
-  topHeaderWrap: {
+  pageHeader: {
     gap: 4,
   },
   pageTitle: {
     fontSize: 26,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
     letterSpacing: -0.5,
   },
   pageSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
-    lineHeight: 16,
+  },
+  centerContainer: {
+    paddingVertical: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  feedList: {
+    gap: 16,
   },
   voteCard: {
-    backgroundColor: "#121214",
     borderRadius: 24,
-    padding: 18,
+    padding: 16,
     borderWidth: 1,
-    borderColor: "#27272a",
-    gap: spacing[3],
+    gap: 12,
   },
   rowBetween: {
     flexDirection: "row",
@@ -246,111 +281,101 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   tracking: {
-    fontSize: 17,
+    fontSize: 15,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   meta: {
-    fontSize: fontSize.xs,
+    fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     marginTop: 2,
   },
   photoRow: {
     flexDirection: "row",
-    gap: spacing[3],
+    gap: 10,
   },
   photoCol: {
     flex: 1,
-    gap: spacing[1],
+    gap: 4,
   },
   photoLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: fontFamily.bold,
-    color: "#8e8e8e",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   photo: {
     width: "100%",
-    height: 110,
+    height: 120,
     borderRadius: 14,
   },
   photoPlaceholder: {
     width: "100%",
-    height: 110,
+    height: 120,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#27272a",
-    borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#18181b",
   },
   placeholderText: {
-    fontSize: fontSize.xs,
+    fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
   },
-  completionNote: {
-    fontSize: 12,
+  description: {
+    fontSize: 13,
     fontFamily: fontFamily.regular,
-    color: "#d4d4d8",
     lineHeight: 18,
   },
-  progressTrack: {
-    height: 6,
-    borderRadius: radius.pill,
-    backgroundColor: "#18181b",
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#22c55e",
-    borderRadius: radius.pill,
+  progressSection: {
+    gap: 6,
   },
   progressLabel: {
     fontSize: 11,
     fontFamily: fontFamily.medium,
-    color: "#8e8e8e",
   },
-  verifiedSuccessBadge: {
+  progressValue: {
+    fontSize: 11,
+    fontFamily: fontFamily.bold,
+  },
+  track: {
+    height: 6,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  fill: {
+    height: "100%",
+    backgroundColor: "#22c55e",
+    borderRadius: 3,
+  },
+  commentInput: {
+    borderRadius: radius.control,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    fontFamily: fontFamily.regular,
+  },
+  errorText: {
+    fontSize: 12,
+    fontFamily: fontFamily.medium,
+    color: "#ef4444",
+  },
+  votedBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(34, 197, 94, 0.12)",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: radius.pill,
-    alignSelf: "flex-start",
-  },
-  resolvedNote: {
-    fontSize: 11,
-    fontFamily: fontFamily.semibold,
-    color: "#22c55e",
-  },
-  votedNote: {
-    fontSize: 11,
-    fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
-  },
-  commentBox: {
-    minHeight: 46,
-    padding: spacing[3],
-    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#27272a",
-    backgroundColor: "#18181b",
-    color: "#ffffff",
-    fontFamily: fontFamily.regular,
-    fontSize: fontSize.sm,
-    textAlignVertical: "top",
   },
-  actions: {
+  votedText: {
+    fontSize: 13,
+    fontFamily: fontFamily.semibold,
+  },
+  voteButtonsRow: {
     flexDirection: "row",
-    gap: spacing[2],
+    gap: 10,
   },
-  voteActionBtn: {
+  voteBtn: {
     flex: 1,
     height: 42,
     borderRadius: radius.pill,
@@ -359,13 +384,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
   },
-  voteActionBtnText: {
+  voteBtnPositive: {
+    backgroundColor: "#16a34a",
+  },
+  voteBtnPositiveText: {
     fontSize: 13,
     fontFamily: fontFamily.bold,
+    color: "#ffffff",
   },
-  errorText: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.medium,
-    color: "#ef4444",
+  voteBtnNegative: {
+    backgroundColor: "#dc2626",
+  },
+  voteBtnNegativeText: {
+    fontSize: 13,
+    fontFamily: fontFamily.bold,
+    color: "#ffffff",
+  },
+  voteBtnDisabled: {
+    opacity: 0.6,
   },
 });

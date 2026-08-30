@@ -8,9 +8,10 @@ import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { StatusBadge } from "../../components/StatusBadge";
 import { useAuth } from "../../lib/auth-context";
+import { useTheme } from "../../lib/theme-context";
 import { fetchMyIssues } from "../../lib/repositories/issues";
 import { CATEGORY_LABEL } from "../../lib/status";
-import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
+import { fontFamily, fontSize, radius, spacing } from "../../lib/theme";
 import type { Issue } from "../../lib/types";
 
 const ACTIVE_STATUSES = new Set(["reported", "triaged", "assigned", "in_progress", "pending_verification", "reopened"]);
@@ -43,6 +44,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 export default function MyReports() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [filter, setFilter] = useState<Filter>("active");
   const [loading, setLoading] = useState(true);
@@ -70,51 +72,54 @@ export default function MyReports() {
     setRefreshing(false);
   };
 
-  const filtered = issues.filter((issue) => {
-    if (filter === "active") return ACTIVE_STATUSES.has(issue.status);
-    if (filter === "resolved") return RESOLVED_STATUSES.has(issue.status);
+  const filtered = issues.filter((i) => {
+    if (filter === "active") return ACTIVE_STATUSES.has(i.status);
+    if (filter === "resolved") return RESOLVED_STATUSES.has(i.status);
     return true;
   });
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={["top"]}>
       <ScrollView
-        style={styles.scrollContainer}
+        style={[styles.scrollContainer, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ffffff" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.foreground} />
         }
       >
-        {/* Top Header */}
-        <View style={styles.topHeaderRow}>
-          <View>
-            <Text style={styles.sectionHeaderTitle}>My Submissions</Text>
-            <Text style={styles.sectionHeaderSub}>
-              {issues.length} total report{issues.length === 1 ? "" : "s"} tracked across city departments
-            </Text>
-          </View>
-
+        <View style={styles.headerRow}>
+          <Text style={[styles.pageTitle, { color: colors.foreground }]}>My Reports</Text>
           <Pressable
-            style={styles.newReportBtn}
+            style={[styles.newReportBtn, { backgroundColor: colors.inverseBackground }]}
             onPress={() => router.push("/(tabs)/report")}
           >
-            <Ionicons name="add" size={16} color="#000000" />
-            <Text style={styles.newReportBtnText}>New</Text>
+            <Ionicons name="add" size={18} color={colors.inverseForeground} />
+            <Text style={[styles.newReportBtnText, { color: colors.inverseForeground }]}>New</Text>
           </Pressable>
         </View>
 
         {/* Filter Pills */}
         <View style={styles.filterPillsRow}>
           {FILTERS.map((f) => {
-            const active = filter === f.key;
+            const isSelected = filter === f.key;
             return (
               <Pressable
                 key={f.key}
+                style={[
+                  styles.filterPill,
+                  isSelected
+                    ? [styles.filterPillActive, { backgroundColor: colors.inverseBackground }]
+                    : [styles.filterPillInactive, { backgroundColor: colors.surface, borderColor: colors.border }],
+                ]}
                 onPress={() => setFilter(f.key)}
-                style={[styles.filterPill, active ? styles.filterPillActive : styles.filterPillInactive]}
               >
-                <Text style={[styles.filterPillText, active ? styles.filterPillTextActive : styles.filterPillTextInactive]}>
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: isSelected ? colors.inverseForeground : colors.foreground },
+                  ]}
+                >
                   {f.label}
                 </Text>
               </Pressable>
@@ -122,54 +127,62 @@ export default function MyReports() {
           })}
         </View>
 
-        {/* Reports List */}
-        {loading ? (
-          <ActivityIndicator color="#ffffff" style={{ marginTop: spacing[6] }} />
+        {loading && !refreshing ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={colors.foreground} />
+          </View>
         ) : filtered.length === 0 ? (
           <EmptyState
-            icon="document-text-outline"
-            title={issues.length === 0 ? "No reports yet" : `No ${filter} reports`}
+            title="No reports found"
             description={
-              issues.length === 0
-                ? "Reports you submit will show up here with live vertical milestone tracking."
-                : "Try switching to another filter tab above."
+              filter === "active"
+                ? "You don't have any active issues under municipal review."
+                : "No resolved reports yet."
             }
-            action={issues.length === 0 ? <Button label="Report an issue" onPress={() => router.push("/(tabs)/report")} /> : undefined}
+            action={<Button label="File a Report" onPress={() => router.push("/(tabs)/report")} />}
           />
         ) : (
-          filtered.map((issue) => (
-            <Pressable
-              key={issue.id}
-              style={styles.issueCard}
-              onPress={() => router.push({ pathname: "/reports/[id]", params: { id: issue.id } })}
-            >
-              <View style={styles.cardTopRow}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Ionicons
-                    name={(CATEGORY_ICONS[issue.category] || "construct-outline") as any}
-                    size={16}
-                    color="#60a5fa"
-                  />
-                  <Text style={styles.trackingIdText}>{issue.trackingId}</Text>
+          <View style={styles.cardsList}>
+            {filtered.map((issue) => (
+              <Pressable
+                key={issue.id}
+                style={[styles.issueCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => router.push({ pathname: "/reports/[id]", params: { id: issue.id } })}
+              >
+                <View style={styles.cardHeaderRow}>
+                  <View style={[styles.categoryIconWrap, { backgroundColor: colors.surfaceMuted }]}>
+                    <Ionicons
+                      name={(CATEGORY_ICONS[issue.category] as any) || "construct-outline"}
+                      size={18}
+                      color={colors.foreground}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.trackingIdText, { color: colors.foreground }]}>{issue.trackingId}</Text>
+                    <Text style={[styles.categoryText, { color: colors.mutedForeground }]}>
+                      {CATEGORY_LABEL[issue.category]} · {issue.neighborhood}
+                    </Text>
+                  </View>
+                  <StatusBadge status={issue.status} />
                 </View>
-                <StatusBadge status={issue.status} />
-              </View>
 
-              <Text style={styles.categorySubText}>
-                {CATEGORY_LABEL[issue.category]} · {issue.neighborhood || "District"} · {relativeTime(issue.createdAt)}
-              </Text>
+                <Text style={[styles.descriptionText, { color: colors.foreground }]} numberOfLines={2}>
+                  {issue.description}
+                </Text>
 
-              <Text style={styles.descriptionText} numberOfLines={2}>
-                {issue.description}
-              </Text>
-
-              <View style={styles.cardBottomRow}>
-                <View style={styles.trackMilestoneBtn}>
-                  <Text style={styles.trackMilestoneText}>View Status Timeline ➔</Text>
+                <View style={styles.cardFooterRow}>
+                  <View style={styles.timeWrap}>
+                    <Ionicons name="time-outline" size={13} color={colors.mutedForeground} />
+                    <Text style={[styles.timeText, { color: colors.mutedForeground }]}>{relativeTime(issue.createdAt)}</Text>
+                  </View>
+                  <View style={styles.chevronWrap}>
+                    <Text style={[styles.viewTrackText, { color: colors.foreground }]}>View Track</Text>
+                    <Ionicons name="chevron-forward" size={14} color={colors.foreground} />
+                  </View>
                 </View>
-              </View>
-            </Pressable>
-          ))
+              </Pressable>
+            ))}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -179,11 +192,9 @@ export default function MyReports() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContent: {
     paddingHorizontal: spacing[4],
@@ -191,36 +202,27 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[8] + 20,
     gap: spacing[4],
   },
-  topHeaderRow: {
+  headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
-  sectionHeaderTitle: {
+  pageTitle: {
     fontSize: 26,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
     letterSpacing: -0.5,
-  },
-  sectionHeaderSub: {
-    fontSize: 12,
-    fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
-    marginTop: 2,
   },
   newReportBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#ffffff",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: radius.pill,
   },
   newReportBtnText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: fontFamily.bold,
-    color: "#000000",
   },
   filterPillsRow: {
     flexDirection: "row",
@@ -231,69 +233,76 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: radius.pill,
   },
-  filterPillActive: {
-    backgroundColor: "#ffffff",
-  },
+  filterPillActive: {},
   filterPillInactive: {
-    backgroundColor: "#18181b",
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   filterPillText: {
     fontSize: 13,
     fontFamily: fontFamily.semibold,
   },
-  filterPillTextActive: {
-    color: "#000000",
+  centerContainer: {
+    paddingVertical: 48,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  filterPillTextInactive: {
-    color: "#8e8e8e",
+  cardsList: {
+    gap: 12,
   },
   issueCard: {
-    backgroundColor: "#121214",
     borderRadius: 22,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#27272a",
-    gap: 8,
+    gap: 10,
   },
-  cardTopRow: {
+  cardHeaderRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 10,
+  },
+  categoryIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
   },
   trackingIdText: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
-  categorySubText: {
-    fontSize: 12,
-    fontFamily: fontFamily.medium,
-    color: "#8e8e8e",
+  categoryText: {
+    fontSize: 11,
+    fontFamily: fontFamily.regular,
+    marginTop: 1,
   },
   descriptionText: {
     fontSize: 13,
     fontFamily: fontFamily.regular,
-    color: "#d4d4d8",
     lineHeight: 18,
   },
-  cardBottomRow: {
+  cardFooterRow: {
     flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 4,
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 4,
   },
-  trackMilestoneBtn: {
-    backgroundColor: "#18181b",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: "#27272a",
+  timeWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  trackMilestoneText: {
+  timeText: {
     fontSize: 11,
-    fontFamily: fontFamily.semibold,
-    color: "#ffffff",
+    fontFamily: fontFamily.regular,
+  },
+  chevronWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  viewTrackText: {
+    fontSize: 11,
+    fontFamily: fontFamily.bold,
   },
 });

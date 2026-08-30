@@ -7,9 +7,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../../lib/auth-context";
+import { useTheme } from "../../lib/theme-context";
 import { setReducedMotionOverride, useReducedMotion } from "../../lib/preferences";
 import { registerForPushNotifications } from "../../lib/push-notifications";
-import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
+import { fontFamily, fontSize, radius, spacing } from "../../lib/theme";
 
 function roleLabel(role: string): string {
   return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -24,6 +25,7 @@ function initials(name: string): string {
 export default function Profile() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const { theme, setTheme, colors, isDark } = useTheme();
   const reducedMotion = useReducedMotion();
   const [notifStatus, setNotifStatus] = useState<Notifications.PermissionStatus | null>(null);
 
@@ -43,26 +45,26 @@ export default function Profile() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={["top"]}>
       <ScrollView
-        style={styles.scrollContainer}
+        style={[styles.scrollContainer, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.pageHeaderTitle}>Citizen Profile</Text>
+        <Text style={[styles.pageHeaderTitle, { color: colors.foreground }]}>Citizen Profile</Text>
 
         {/* Identity Card */}
-        <View style={styles.identityCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials(user.name)}</Text>
+        <View style={[styles.identityCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.avatar, { backgroundColor: colors.inverseBackground }]}>
+            <Text style={[styles.avatarText, { color: colors.inverseForeground }]}>{initials(user.name)}</Text>
           </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={styles.name}>{user.name}</Text>
-            <Text style={styles.email}>{user.email}</Text>
+            <Text style={[styles.name, { color: colors.foreground }]}>{user.name}</Text>
+            <Text style={[styles.email, { color: colors.mutedForeground }]}>{user.email}</Text>
             <View style={styles.badgeRow}>
-              <View style={styles.roleBadge}>
-                <Ionicons name="shield-checkmark" size={12} color="#ffffff" />
-                <Text style={styles.roleText}>{user.roles.map(roleLabel).join(", ") || "Citizen"}</Text>
+              <View style={[styles.roleBadge, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+                <Ionicons name="shield-checkmark" size={12} color={colors.foreground} />
+                <Text style={[styles.roleText, { color: colors.foreground }]}>{user.roles.map(roleLabel).join(", ") || "Citizen"}</Text>
               </View>
               <View style={styles.trustBadge}>
                 <Text style={styles.trustBadgeText}>⚡ 100 Trust Karma</Text>
@@ -71,16 +73,83 @@ export default function Profile() {
           </View>
         </View>
 
+        {/* Theme Mode Selector Card (Default: White Theme) */}
+        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.cardHeaderRow}>
+            <Ionicons name="color-palette-outline" size={18} color={colors.foreground} />
+            <Text style={[styles.cardHeaderTitle, { color: colors.foreground }]}>App Theme (Appearance)</Text>
+          </View>
+          <Text style={[styles.settingHint, { color: colors.mutedForeground }]}>
+            Choose between crisp White theme (default) or dark OLED mode.
+          </Text>
+
+          <View style={styles.themeToggleDeck}>
+            <Pressable
+              style={[
+                styles.themeChoiceBtn,
+                theme === "light"
+                  ? [styles.themeChoiceBtnActive, { backgroundColor: isDark ? "#27272a" : "#0f172a" }]
+                  : [styles.themeChoiceBtnInactive, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }],
+              ]}
+              onPress={() => setTheme("light")}
+            >
+              <Ionicons
+                name="sunny"
+                size={18}
+                color={theme === "light" ? "#ffffff" : colors.mutedForeground}
+              />
+              <Text
+                style={[
+                  styles.themeChoiceBtnText,
+                  { color: theme === "light" ? "#ffffff" : colors.foreground },
+                ]}
+              >
+                White Theme (Default)
+              </Text>
+              {theme === "light" && (
+                <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
+              )}
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.themeChoiceBtn,
+                theme === "dark"
+                  ? [styles.themeChoiceBtnActive, { backgroundColor: isDark ? "#27272a" : "#0f172a" }]
+                  : [styles.themeChoiceBtnInactive, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }],
+              ]}
+              onPress={() => setTheme("dark")}
+            >
+              <Ionicons
+                name="moon"
+                size={18}
+                color={theme === "dark" ? "#ffffff" : colors.mutedForeground}
+              />
+              <Text
+                style={[
+                  styles.themeChoiceBtnText,
+                  { color: theme === "dark" ? "#ffffff" : colors.foreground },
+                ]}
+              >
+                Dark Theme
+              </Text>
+              {theme === "dark" && (
+                <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
+              )}
+            </Pressable>
+          </View>
+        </View>
+
         {/* AI Engine Status Card */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.cardHeaderTitle}>CivicFix AI Intelligence</Text>
+        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.cardHeaderTitle, { color: colors.foreground }]}>CivicFix AI Intelligence</Text>
           <View style={styles.aiInnerRow}>
-            <View style={styles.aiIconWrap}>
-              <Ionicons name="sparkles" size={18} color="#000000" />
+            <View style={[styles.aiIconWrap, { backgroundColor: colors.inverseBackground }]}>
+              <Ionicons name="sparkles" size={18} color={colors.inverseForeground} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.aiModelName}>Groq Llama 3.1 & Vision Engine</Text>
-              <Text style={styles.aiModelDetail}>Automatic defect triage, GPS pinning & live SLA</Text>
+              <Text style={[styles.aiModelName, { color: colors.foreground }]}>Groq Llama 3.1 & Vision Engine</Text>
+              <Text style={[styles.aiModelDetail, { color: colors.mutedForeground }]}>Automatic defect triage, GPS pinning & live SLA</Text>
             </View>
             <View style={styles.activePill}>
               <View style={styles.greenDot} />
@@ -90,44 +159,44 @@ export default function Profile() {
         </View>
 
         {/* Notifications & Motion Settings */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.cardHeaderTitle}>Preferences & Alerts</Text>
+        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.cardHeaderTitle, { color: colors.foreground }]}>Preferences & Alerts</Text>
 
           <View style={styles.settingRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.settingLabel}>Push Notifications</Text>
-              <Text style={styles.settingHint}>Get real-time updates when city crews resolve your issues.</Text>
+              <Text style={[styles.settingLabel, { color: colors.foreground }]}>Push Notifications</Text>
+              <Text style={[styles.settingHint, { color: colors.mutedForeground }]}>Get real-time updates when city crews resolve your issues.</Text>
             </View>
             <Pressable
-              style={styles.actionPillBtn}
+              style={[styles.actionPillBtn, { backgroundColor: colors.inverseBackground }]}
               onPress={handleToggleNotifications}
             >
-              <Text style={styles.actionPillText}>{notifStatus === "granted" ? "Manage" : "Enable"}</Text>
+              <Text style={[styles.actionPillText, { color: colors.inverseForeground }]}>{notifStatus === "granted" ? "Manage" : "Enable"}</Text>
             </Pressable>
           </View>
 
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
           <View style={styles.settingRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.settingLabel}>Reduce Motion</Text>
-              <Text style={styles.settingHint}>Disable spring transitions and map animations.</Text>
+              <Text style={[styles.settingLabel, { color: colors.foreground }]}>Reduce Motion</Text>
+              <Text style={[styles.settingHint, { color: colors.mutedForeground }]}>Disable spring transitions and map animations.</Text>
             </View>
             <Switch
               value={reducedMotion}
               onValueChange={(v) => setReducedMotionOverride(v)}
-              trackColor={{ true: "#ffffff", false: "#27272a" }}
-              thumbColor={reducedMotion ? "#000000" : "#8e8e8e"}
+              trackColor={{ true: colors.foreground, false: colors.surfaceMuted }}
+              thumbColor={reducedMotion ? colors.inverseForeground : colors.mutedForeground}
             />
           </View>
         </View>
 
         {/* Privacy Assurance */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.cardHeaderTitle}>Privacy & Location Security</Text>
+        <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.cardHeaderTitle, { color: colors.foreground }]}>Privacy & Location Security</Text>
           <View style={styles.privacyRow}>
-            <Ionicons name="lock-closed" size={16} color="#34d399" />
-            <Text style={styles.privacyText}>
+            <Ionicons name="lock-closed" size={16} color="#16a34a" />
+            <Text style={[styles.privacyText, { color: colors.mutedForeground }]}>
               Exact GPS coordinates are encrypted and accessible only to dispatched municipal workers. Public neighborhood feeds display generalized approximate pins.
             </Text>
           </View>
@@ -137,11 +206,11 @@ export default function Profile() {
         <View style={{ gap: 10, marginTop: 4 }}>
           {user.role !== "field_worker" ? (
             <Pressable
-              style={styles.secondaryActionBtn}
+              style={[styles.secondaryActionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={() => router.push("/staff-request")}
             >
-              <Ionicons name="business-outline" size={16} color="#ffffff" />
-              <Text style={styles.secondaryActionBtnText}>Municipal Staff Access Request</Text>
+              <Ionicons name="business-outline" size={16} color={colors.foreground} />
+              <Text style={[styles.secondaryActionBtnText, { color: colors.foreground }]}>Municipal Staff Access Request</Text>
             </Pressable>
           ) : null}
 
@@ -154,7 +223,7 @@ export default function Profile() {
           </Pressable>
         </View>
 
-        <Text style={styles.version}>CivicFix v{Constants.expoConfig?.version ?? "1.0.0"}</Text>
+        <Text style={[styles.version, { color: colors.dimForeground }]}>CivicFix v{Constants.expoConfig?.version ?? "1.0.0"}</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -163,11 +232,9 @@ export default function Profile() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContent: {
     paddingHorizontal: spacing[4],
@@ -178,15 +245,12 @@ const styles = StyleSheet.create({
   pageHeaderTitle: {
     fontSize: 26,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
     letterSpacing: -0.5,
   },
   identityCard: {
-    backgroundColor: "#121214",
     borderRadius: 24,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#27272a",
     flexDirection: "row",
     alignItems: "center",
     gap: spacing[3],
@@ -195,24 +259,20 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
     fontSize: 18,
     fontFamily: fontFamily.bold,
-    color: "#000000",
   },
   name: {
     fontSize: 18,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   email: {
     fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
   },
   badgeRow: {
     flexDirection: "row",
@@ -224,17 +284,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#18181b",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   roleText: {
     fontSize: 10,
     fontFamily: fontFamily.semibold,
-    color: "#ffffff",
   },
   trustBadge: {
     backgroundColor: "rgba(245, 158, 11, 0.15)",
@@ -248,17 +305,42 @@ const styles = StyleSheet.create({
     color: "#f59e0b",
   },
   sectionCard: {
-    backgroundColor: "#121214",
     borderRadius: 24,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#27272a",
     gap: spacing[3],
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   cardHeaderTitle: {
     fontSize: 14,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
+  },
+  themeToggleDeck: {
+    gap: 8,
+    marginTop: 4,
+  },
+  themeChoiceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  themeChoiceBtnActive: {
+    borderColor: "transparent",
+  },
+  themeChoiceBtnInactive: {},
+  themeChoiceBtnText: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 13,
+    fontFamily: fontFamily.semibold,
   },
   aiInnerRow: {
     flexDirection: "row",
@@ -269,19 +351,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
   },
   aiModelName: {
     fontSize: 13,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   aiModelDetail: {
     fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     marginTop: 1,
   },
   activePill: {
@@ -313,17 +392,14 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 13,
     fontFamily: fontFamily.semibold,
-    color: "#ffffff",
   },
   settingHint: {
     fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     marginTop: 2,
     lineHeight: 15,
   },
   actionPillBtn: {
-    backgroundColor: "#ffffff",
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: radius.pill,
@@ -331,11 +407,9 @@ const styles = StyleSheet.create({
   actionPillText: {
     fontSize: 12,
     fontFamily: fontFamily.bold,
-    color: "#000000",
   },
   divider: {
     height: 1,
-    backgroundColor: "#1e1e24",
   },
   privacyRow: {
     flexDirection: "row",
@@ -346,7 +420,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     lineHeight: 17,
   },
   secondaryActionBtn: {
@@ -354,16 +427,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#18181b",
     height: 48,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   secondaryActionBtnText: {
     fontSize: 13,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   signOutBtn: {
     flexDirection: "row",
@@ -384,7 +454,6 @@ const styles = StyleSheet.create({
   version: {
     fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: "#6b7280",
     textAlign: "center",
     marginTop: 4,
   },
