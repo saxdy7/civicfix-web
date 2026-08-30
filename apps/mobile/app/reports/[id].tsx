@@ -100,7 +100,7 @@ export default function ReportStatus() {
           onPress: async () => {
             if (!id || !user) return;
             setDeleting(true);
-            const res = await deleteIssue(id, user.id);
+            const res = await deleteIssue(id);
             setDeleting(false);
             if (res && "error" in res && res.error) {
               Alert.alert("Error", res.error);
@@ -129,8 +129,7 @@ export default function ReportStatus() {
         <EmptyState
           title="Report Not Found"
           description="This report may have been deleted or does not belong to your account."
-          actionLabel="Go to My Reports"
-          onAction={() => router.replace("/(tabs)/my-reports")}
+          action={<Pressable style={[styles.bottomPrimaryBtn, { backgroundColor: colors.inverseBackground, marginTop: 12, paddingHorizontal: 20 }]} onPress={() => router.replace("/(tabs)/my-reports")}><Text style={[styles.bottomPrimaryBtnText, { color: colors.inverseForeground }]}>Go to My Reports</Text></Pressable>}
         />
       </SafeAreaView>
     );
@@ -293,7 +292,7 @@ export default function ReportStatus() {
         </View>
 
         {/* Department Chat Drawer */}
-        {showChat && (
+        {showChat && user && (
           <View style={[styles.chatDrawerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.chatDrawerTitle, { color: colors.foreground }]}>Live Department Dispatch</Text>
             <IssueChat issueId={issue.id} currentUserId={user.id} senderRole="resident" />
