@@ -105,7 +105,8 @@ export function SignInForm() {
       const result = await signIn.create({ strategy: "ticket", ticket: data.token });
       if (result.status === "complete") {
         await setActive!({ session: result.createdSessionId });
-        window.location.href = next ?? "/post-sign-in";
+        const destination = next ?? (demoRole === "admin" ? "/admin" : demoRole === "worker" ? "/admin/assignments" : "/app");
+        window.location.href = destination;
         return;
       }
       setError("Demo sign-in incomplete — try again.");

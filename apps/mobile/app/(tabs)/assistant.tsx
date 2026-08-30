@@ -25,6 +25,7 @@ import { useTheme } from "../../lib/theme-context";
 import { createIssue, fetchMyIssues, uploadIssuePhoto } from "../../lib/repositories/issues";
 import { fontFamily, fontSize, radius, spacing } from "../../lib/theme";
 import { processCivicAssistantQuery, type AIResponse } from "../../lib/ai-assistant-engine";
+import { FormattedMessage } from "../../components/FormattedMessage";
 import {
   deleteChatSession,
   generateChatTitle,
@@ -452,16 +453,7 @@ export default function AssistantScreen() {
                         : [styles.bubbleBot],
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.messageText,
-                        isUser
-                          ? { color: colors.inverseForeground }
-                          : { color: colors.foreground },
-                      ]}
-                    >
-                      {msg.text}
-                    </Text>
+                    <FormattedMessage text={msg.text} isUser={isUser} />
 
                     {msg.actions && msg.actions.length > 0 && (
                       <View style={styles.bubbleActionsWrap}>
