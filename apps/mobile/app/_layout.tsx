@@ -94,9 +94,9 @@ export default function RootLayout() {
             <Stack.Screen name="staff-request" options={{ title: "Staff access" }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="report/confirmation" options={{ headerShown: false }} />
-            <Stack.Screen name="reports/[id]" options={{ title: "Report status" }} />
+            <Stack.Screen name="reports/[id]" options={{ headerShown: false }} />
             <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
-            <Stack.Screen name="assignments/[id]" options={{ title: "Assignment" }} />
+            <Stack.Screen name="assignments/[id]/index" options={{ title: "Assignment" }} />
             <Stack.Screen name="assignments/[id]/evidence" options={{ title: "Resolution evidence" }} />
             <Stack.Screen name="assignments/[id]/navigate" options={{ title: "Navigate" }} />
             <Stack.Screen name="sync-queue" options={{ title: "Offline sync queue" }} />

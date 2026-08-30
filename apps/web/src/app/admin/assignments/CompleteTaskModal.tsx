@@ -121,7 +121,7 @@ export function CompleteTaskModal({
       style={{
         position: "fixed",
         inset: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
+        backgroundColor: "rgba(0, 0, 0, 0.6)",
         backdropFilter: "blur(6px)",
         display: "flex",
         alignItems: "center",
@@ -132,18 +132,18 @@ export function CompleteTaskModal({
     >
       <div
         style={{
-          background: "var(--color-surface, #18181b)",
-          border: "1px solid var(--color-border, #27272a)",
+          background: "var(--color-surface, #ffffff)",
+          border: "1px solid var(--color-border, #e2e8f0)",
           borderRadius: "var(--radius-lg, 12px)",
           maxWidth: "540px",
           width: "100%",
           padding: "var(--space-5)",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
-          color: "#fff",
+          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+          color: "var(--color-foreground, #0f172a)",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}>
-          <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700 }}>
+          <h2 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 700, color: "var(--color-foreground, #0f172a)" }}>
             📸 Complete Task & Submit Evidence
           </h2>
           <button
@@ -153,7 +153,7 @@ export function CompleteTaskModal({
             style={{
               background: "none",
               border: "none",
-              color: "#a1a1aa",
+              color: "var(--color-muted-foreground, #64748b)",
               fontSize: "1.25rem",
               cursor: "pointer",
               padding: "4px",
@@ -163,12 +163,12 @@ export function CompleteTaskModal({
           </button>
         </div>
 
-        <p style={{ margin: "0 0 16px", fontSize: "0.875rem", color: "#a1a1aa", lineHeight: 1.5 }}>
-          Submit Before and After work photos for <strong>{issue.trackingId}</strong> ({issue.category}). Once submitted, this report moves to <strong>Community Verification</strong> for citizens to inspect and vote!
+        <p style={{ margin: "0 0 16px", fontSize: "0.875rem", color: "var(--color-muted-foreground, #475569)", lineHeight: 1.5 }}>
+          Submit Before and After work photos for <strong style={{ color: "var(--color-foreground, #0f172a)" }}>{issue.trackingId}</strong> ({issue.category}). Once submitted, this report moves to <strong>Community Verification</strong> for citizens to inspect and vote!
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ display: "flex", gap: "12px", borderBottom: "1px solid #27272a", paddingBottom: "12px" }}>
+          <div style={{ display: "flex", gap: "12px", borderBottom: "1px solid var(--color-border, #e2e8f0)", paddingBottom: "12px" }}>
             <button
               type="button"
               onClick={() => setUseUploads(false)}
@@ -176,10 +176,10 @@ export function CompleteTaskModal({
                 flex: 1,
                 padding: "8px 12px",
                 borderRadius: "6px",
-                border: "1px solid " + (!useUploads ? "var(--color-civic-green, #10b981)" : "#3f3f46"),
-                background: !useUploads ? "rgba(16, 185, 129, 0.15)" : "#27272a",
-                color: !useUploads ? "#10b981" : "#a1a1aa",
-                fontWeight: 600,
+                border: "1px solid " + (!useUploads ? "var(--color-civic-green, #10b981)" : "var(--color-border, #cbd5e1)"),
+                background: !useUploads ? "rgba(16, 185, 129, 0.15)" : "var(--color-surface, #ffffff)",
+                color: !useUploads ? "#059669" : "var(--color-muted-foreground, #64748b)",
+                fontWeight: 700,
                 cursor: "pointer",
                 fontSize: "0.85rem",
               }}
@@ -193,10 +193,10 @@ export function CompleteTaskModal({
                 flex: 1,
                 padding: "8px 12px",
                 borderRadius: "6px",
-                border: "1px solid " + (useUploads ? "var(--color-civic-green, #10b981)" : "#3f3f46"),
-                background: useUploads ? "rgba(16, 185, 129, 0.15)" : "#27272a",
-                color: useUploads ? "#10b981" : "#a1a1aa",
-                fontWeight: 600,
+                border: "1px solid " + (useUploads ? "var(--color-civic-green, #10b981)" : "var(--color-border, #cbd5e1)"),
+                background: useUploads ? "rgba(16, 185, 129, 0.15)" : "var(--color-surface, #ffffff)",
+                color: useUploads ? "#059669" : "var(--color-muted-foreground, #64748b)",
+                fontWeight: 700,
                 cursor: "pointer",
                 fontSize: "0.85rem",
               }}
@@ -207,7 +207,7 @@ export function CompleteTaskModal({
 
           {!useUploads ? (
             <div>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "8px" }}>
+              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "8px", color: "var(--color-foreground, #0f172a)" }}>
                 Select Field Preset Photos:
               </label>
               <select
@@ -215,41 +215,43 @@ export function CompleteTaskModal({
                 onChange={(e) => setSampleIndex(Number(e.target.value))}
                 style={{
                   width: "100%",
-                  padding: "10px",
-                  borderRadius: "6px",
-                  background: "#27272a",
-                  border: "1px solid #3f3f46",
-                  color: "#fff",
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  background: "var(--color-surface, #ffffff)",
+                  border: "1px solid var(--color-border, #cbd5e1)",
+                  color: "var(--color-foreground, #0f172a)",
                   fontSize: "0.9rem",
+                  fontWeight: 500,
+                  outline: "none",
                 }}
               >
                 {DEFAULT_SAMPLE_PHOTOS.map((p, idx) => (
-                  <option key={p.name} value={idx}>
+                  <option key={p.name} value={idx} style={{ background: "var(--color-surface, #ffffff)", color: "#0f172a" }}>
                     {p.name}
                   </option>
                 ))}
               </select>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "12px" }}>
                 <div>
-                  <span style={{ fontSize: "0.75rem", color: "#a1a1aa", display: "block", marginBottom: "4px" }}>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--color-muted-foreground, #64748b)", display: "block", marginBottom: "4px" }}>
                     BEFORE WORK:
                   </span>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={DEFAULT_SAMPLE_PHOTOS[sampleIndex].beforeUrl}
                     alt="Before"
-                    style={{ width: "100%", height: "110px", objectFit: "cover", borderRadius: "6px", border: "1px solid #3f3f46" }}
+                    style={{ width: "100%", height: "110px", objectFit: "cover", borderRadius: "6px", border: "1px solid var(--color-border, #cbd5e1)" }}
                   />
                 </div>
                 <div>
-                  <span style={{ fontSize: "0.75rem", color: "#a1a1aa", display: "block", marginBottom: "4px" }}>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--color-muted-foreground, #64748b)", display: "block", marginBottom: "4px" }}>
                     AFTER WORK (FIXED):
                   </span>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={DEFAULT_SAMPLE_PHOTOS[sampleIndex].afterUrl}
                     alt="After"
-                    style={{ width: "100%", height: "110px", objectFit: "cover", borderRadius: "6px", border: "1px solid #3f3f46" }}
+                    style={{ width: "100%", height: "110px", objectFit: "cover", borderRadius: "6px", border: "1px solid var(--color-border, #cbd5e1)" }}
                   />
                 </div>
               </div>
@@ -257,32 +259,32 @@ export function CompleteTaskModal({
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "6px" }}>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "6px", color: "var(--color-foreground, #0f172a)" }}>
                   Before Photo:
                 </label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setBeforeFile(e.target.files?.[0] ?? null)}
-                  style={{ fontSize: "0.8rem", color: "#a1a1aa" }}
+                  style={{ fontSize: "0.8rem", color: "var(--color-foreground, #0f172a)" }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "6px" }}>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "6px", color: "var(--color-foreground, #0f172a)" }}>
                   After Photo:
                 </label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setAfterFile(e.target.files?.[0] ?? null)}
-                  style={{ fontSize: "0.8rem", color: "#a1a1aa" }}
+                  style={{ fontSize: "0.8rem", color: "var(--color-foreground, #0f172a)" }}
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, marginBottom: "6px" }}>
+            <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "6px", color: "var(--color-foreground, #0f172a)" }}>
               Worker Field Note:
             </label>
             <textarea
@@ -292,13 +294,15 @@ export function CompleteTaskModal({
               placeholder="Describe work completed (materials used, safety checks done...)"
               style={{
                 width: "100%",
-                padding: "10px",
-                borderRadius: "6px",
-                background: "#27272a",
-                border: "1px solid #3f3f46",
-                color: "#fff",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                background: "var(--color-surface, #ffffff)",
+                border: "1px solid var(--color-border, #cbd5e1)",
+                color: "var(--color-foreground, #0f172a)",
                 fontSize: "0.875rem",
                 resize: "vertical",
+                boxSizing: "border-box",
+                outline: "none",
               }}
             />
           </div>

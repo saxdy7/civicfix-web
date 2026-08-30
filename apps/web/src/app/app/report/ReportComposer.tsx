@@ -264,6 +264,7 @@ export function ReportComposer() {
       }
 
       const params = new URLSearchParams({
+        id: issueId,
         trackingId,
         category,
         severity: isEmergency ? "critical" : severity,

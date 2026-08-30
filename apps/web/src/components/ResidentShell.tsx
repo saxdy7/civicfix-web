@@ -8,6 +8,14 @@ import type { ReactNode } from "react";
 import { CivicBotWidget } from "@/components/chatbot";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useDashboardTheme } from "@/lib/dashboard-theme";
+import {
+  IconAiAssistant,
+  IconCommunity,
+  IconMyReports,
+  IconNotifications,
+  IconOverview,
+  IconProfile,
+} from "@/components/Icons";
 
 import { api } from "@convex/_generated/api";
 
@@ -23,16 +31,16 @@ function buildNavGroups(counts: { reports: number; notifications: number }) {
     {
       label: "My activity",
       items: [
-        { href: "/app", label: "Overview" },
-        { href: "/app/assistant", label: "🤖 AI Assistant" },
-        { href: "/app/reports", label: "My reports", count: counts.reports },
-        { href: "/app/community", label: "Community" },
-        { href: "/app/notifications", label: "Notifications", count: counts.notifications },
+        { href: "/app", label: "Overview", icon: IconOverview },
+        { href: "/app/assistant", label: "AI Assistant", icon: IconAiAssistant },
+        { href: "/app/reports", label: "My reports", count: counts.reports, icon: IconMyReports },
+        { href: "/app/community", label: "Community", icon: IconCommunity },
+        { href: "/app/notifications", label: "Notifications", count: counts.notifications, icon: IconNotifications },
       ],
     },
     {
       label: "Account",
-      items: [{ href: "/app/profile", label: "Profile & privacy" }],
+      items: [{ href: "/app/profile", label: "Profile & privacy", icon: IconProfile }],
     },
   ];
 }
@@ -49,8 +57,6 @@ export function ResidentShell({ children, user }: { children: ReactNode; user: R
   const { signOut } = useClerk();
   const { theme, toggleTheme } = useDashboardTheme();
 
-  // Convex subscriptions — these update live with no manual refresh wiring
-  // when a new report/notification lands, unlike the old one-shot SSR fetch.
   const myIssues = useQuery(api.issues.list, { onlyMine: true });
   const unreadCount = useQuery(api.notifications.unreadCount, {});
   const navGroups = buildNavGroups({ reports: myIssues?.length ?? 0, notifications: unreadCount ?? 0 });
@@ -83,13 +89,18 @@ export function ResidentShell({ children, user }: { children: ReactNode; user: R
             {group.items.map((item) => {
               const isActive =
                 item.href === "/app" ? pathname === "/app" : pathname.startsWith(item.href);
+              const IconComp = item.icon;
+
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   className={`${styles.navLink} ${isActive ? styles.navLinkActive : ""}`}
                 >
-                  <span>{item.label}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                    <IconComp size={18} style={{ opacity: isActive ? 1 : 0.7 }} />
+                    <span>{item.label}</span>
+                  </span>
                   {"count" in item && item.count ? (
                     <span className={styles.navCount}>{item.count}</span>
                   ) : null}

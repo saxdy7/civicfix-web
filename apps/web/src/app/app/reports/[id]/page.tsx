@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { notFound, useParams } from "next/navigation";
+import { notFound, useParams, useRouter } from "next/navigation";
 
 import { Card } from "@civicfix/ui-web";
 
@@ -22,9 +23,14 @@ import styles from "../../resident.module.css";
 const EXPECTED: IssueStatus[] = ["reported", "triaged", "assigned", "in_progress", "pending_verification", "resolved"];
 
 export default function ResidentReportDetailPage() {
+  const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const { user } = useUser();
   const issue = useQuery(api.issues.getById, { issueId: id as Id<"issues"> });
+  const updateStatus = useMutation(api.issues.updateStatus);
+  const deleteIssue = useMutation(api.issues.deleteIssue);
+  const [deleting, setDeleting] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   if (issue === undefined) return null;
   // getById already scopes visibility (own issue, or staff, or public) —
@@ -33,14 +39,45 @@ export default function ResidentReportDetailPage() {
 
   const reached = new Set(issue.events.map((e) => e.status));
   const upcoming = EXPECTED.filter((s) => !reached.has(s));
-  const sortedEvents = [...issue.events].sort((a, b) => a.createdAt - b.createdAt);
+  const sortedEvents = [...issue.events].sort((a, b) => a.createdAt - a.createdAt);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteIssue({ issueId: issue._id, reason: "Deleted by resident from web portal" });
+      router.push("/app/reports");
+    } catch (err) {
+      alert("Error deleting report: " + (err instanceof Error ? err.message : String(err)));
+      setDeleting(false);
+      setShowConfirm(false);
+    }
+  };
 
   return (
     <div>
       <div className={styles.pageHeader}>
-        <Link href="/app/reports" style={{ fontSize: "var(--font-size-xs)", color: "var(--color-muted-foreground)" }}>
-          ← All my reports
-        </Link>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Link href="/app/reports" style={{ fontSize: "var(--font-size-xs)", color: "var(--color-muted-foreground)" }}>
+            ← All my reports
+          </Link>
+          <button
+            type="button"
+            onClick={() => setShowConfirm(true)}
+            style={{
+              background: "rgba(239, 68, 68, 0.1)",
+              color: "var(--color-civic-red)",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+              padding: "6px 14px",
+              borderRadius: "999px",
+              fontSize: "var(--font-size-xs)",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            🗑️ Delete Report
+          </button>
+        </div>
+
         <h1 className={styles.title} style={{ marginTop: "var(--space-3)" }}>
           {issue.trackingId}
         </h1>
@@ -51,6 +88,62 @@ export default function ResidentReportDetailPage() {
           <StatusPill status={issue.status} />
         </div>
       </div>
+
+      {showConfirm && (
+        <div
+          style={{
+            background: "rgba(239, 68, 68, 0.08)",
+            border: "1px solid rgba(239, 68, 68, 0.3)",
+            borderRadius: "var(--radius-card)",
+            padding: "var(--space-4)",
+            marginBottom: "var(--space-4)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-2)",
+          }}
+        >
+          <strong style={{ color: "var(--color-civic-red)" }}>⚠️ Delete this report?</strong>
+          <p style={{ margin: 0, fontSize: "var(--font-size-sm)", color: "var(--color-foreground)" }}>
+            Are you sure you want to delete report <strong>{issue.trackingId}</strong>? This action will remove the report from public tracking and cancel further dispatch.
+          </p>
+          <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={handleDelete}
+              style={{
+                background: "var(--color-civic-red)",
+                color: "#ffffff",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: "var(--radius-control)",
+                fontSize: "var(--font-size-xs)",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {deleting ? "Deleting…" : "Yes, Delete Report"}
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => setShowConfirm(false)}
+              style={{
+                background: "var(--color-surface)",
+                color: "var(--color-foreground)",
+                border: "1px solid var(--color-border)",
+                padding: "8px 16px",
+                borderRadius: "var(--radius-control)",
+                fontSize: "var(--font-size-xs)",
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className={styles.detailGrid}>
         <div>
@@ -130,3 +223,4 @@ export default function ResidentReportDetailPage() {
     </div>
   );
 }
+

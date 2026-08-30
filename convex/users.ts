@@ -261,3 +261,21 @@ export const requireSignedIn = query({
     return user._id;
   },
 });
+
+/** Top community users sorted by trust score — powers the Leaderboard banner. */
+export const getLeaderboard = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 5;
+    const users = await ctx.db.query("users").collect();
+    const sorted = users
+      .sort((a, b) => (b.trustScore ?? 100) - (a.trustScore ?? 100))
+      .slice(0, limit);
+    return sorted.map((u) => ({
+      id: u._id,
+      name: u.fullName || u.email || "Community Champion",
+      trustScore: u.trustScore ?? 100,
+    }));
+  },
+});
+

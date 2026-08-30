@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { useState } from "react";
 
 import { Button, Card } from "@civicfix/ui-web";
@@ -11,53 +11,31 @@ import { isOverdue } from "@/lib/admin-mappers";
 import { CATEGORY_LABEL, SEVERITY_LABEL } from "@/lib/status";
 
 import { api } from "@convex/_generated/api";
-import type { Id } from "@convex/_generated/dataModel";
+import type { Doc, Id } from "@convex/_generated/dataModel";
 
 import styles from "../admin.module.css";
+import { CompleteTaskModal } from "../assignments/CompleteTaskModal";
+import { CancelIssueModal } from "./CancelIssueModal";
+import { IssueDetailModal } from "./IssueDetailModal";
+import { TakeTaskModal } from "./TakeTaskModal";
 
 export default function IssueQueuePage() {
   const issues = useQuery(api.issues.list, {});
   const departments = useQuery(api.departments.list, {});
-  const workers = useQuery(api.users.listFieldWorkers, {});
 
-  const assignWorker = useMutation(api.assignments.assignWorker);
-  const routeToDepartment = useMutation(api.issues.routeToDepartment);
-
-  const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [detailIssueId, setDetailIssueId] = useState<Id<"issues"> | null>(null);
+  const [takeTaskIssue, setTakeTaskIssue] = useState<Doc<"issues"> | null>(null);
+  const [completeIssue, setCompleteIssue] = useState<Doc<"issues"> | null>(null);
+  const [cancelIssue, setCancelIssue] = useState<Doc<"issues"> | null>(null);
 
   const deptById = new Map((departments ?? []).map((d) => [d._id, d]));
   const sorted = [...(issues ?? [])].sort((a, b) => b.createdAt - a.createdAt);
-
-  const handleQuickAssign = async (issueId: Id<"issues">) => {
-    setAssigningId(issueId);
-    try {
-      // Find first department or Public Works department
-      const publicWorksDept = (departments ?? []).find((d) => d.name.toLowerCase().includes("public works")) ?? departments?.[0];
-      if (publicWorksDept) {
-        try {
-          await routeToDepartment({ issueId, departmentId: publicWorksDept._id });
-        } catch {
-          // Ignore if already routed
-        }
-      }
-
-      // Assign to first field worker (Alex Worker)
-      const worker = workers?.[0];
-      if (worker) {
-        await assignWorker({ issueId, workerId: worker.id as Id<"users"> });
-      }
-    } catch (err) {
-      console.error("Failed to quick assign:", err);
-    } finally {
-      setAssigningId(null);
-    }
-  };
 
   return (
     <div>
       <div className={styles.pageHeader}>
         <h1 className={styles.title}>Issue queue</h1>
-        <p className={styles.subtitle}>Triage incoming reports, review AI suggestions, and route to a department.</p>
+        <p className={styles.subtitle}>Triage incoming reports, review citizen problem details, and dispatch work tasks.</p>
       </div>
 
       <Card>
@@ -84,14 +62,28 @@ export default function IssueQueuePage() {
                   const dept = issue.departmentId ? deptById.get(issue.departmentId) : null;
                   const overdue = isOverdue(issue.createdAt, dept?.slaHours ?? 72, issue.status);
                   const isUnassigned = issue.status === "reported" || issue.status === "triaged";
-                  const isBusy = assigningId === issue._id;
+                  const canComplete = issue.status === "assigned" || issue.status === "in_progress" || issue.status === "pending_verification";
+                  const canCancel = issue.status !== "resolved" && issue.status !== "rejected";
 
                   return (
                     <tr key={issue._id} style={overdue ? { background: "var(--color-civic-red-soft)" } : undefined}>
                       <td>
-                        <Link href={`/admin/queue/${issue._id}`}>
-                          <strong>{issue.trackingId}</strong>
-                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => setDetailIssueId(issue._id)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            color: "inherit",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            textDecoration: "underline",
+                          }}
+                        >
+                          {issue.trackingId}
+                        </button>
                       </td>
                       <td>{CATEGORY_LABEL[issue.category]}</td>
                       <td>{SEVERITY_LABEL[issue.severity]}</td>
@@ -101,20 +93,83 @@ export default function IssueQueuePage() {
                       </td>
                       <td>{new Date(issue.createdAt).toLocaleDateString()}</td>
                       <td>
-                        {isUnassigned ? (
-                          <Button
-                            variant="primary"
-                            onClick={() => handleQuickAssign(issue._id)}
-                            disabled={isBusy || (workers ?? []).length === 0}
-                            style={{ fontSize: "11px", padding: "4px 8px" }}
+                        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "nowrap" }}>
+                          {/* 1. Take the task button */}
+                          {isUnassigned ? (
+                            <Button
+                              variant="primary"
+                              onClick={() => setTakeTaskIssue(issue)}
+                              style={{ fontSize: "11px", padding: "4px 10px", whiteSpace: "nowrap" }}
+                            >
+                              ⚡ Take the Task
+                            </Button>
+                          ) : canComplete ? (
+                            <button
+                              type="button"
+                              onClick={() => setCompleteIssue(issue)}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                padding: "4px 10px",
+                                borderRadius: "var(--radius-control)",
+                                border: "1px solid var(--color-civic-green, #10b981)",
+                                background: "rgba(16, 185, 129, 0.15)",
+                                color: "var(--color-civic-green, #10b981)",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              ✅ Mark Completion
+                            </button>
+                          ) : null}
+
+                          {/* 2. View details button */}
+                          <button
+                            type="button"
+                            onClick={() => setDetailIssueId(issue._id)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "4px 10px",
+                              borderRadius: "var(--radius-control)",
+                              border: "1px solid var(--color-border)",
+                              background: "var(--color-surface-muted)",
+                              color: "var(--color-foreground)",
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                            }}
                           >
-                            {isBusy ? "Assigning…" : "⚡ Assign Worker"}
-                          </Button>
-                        ) : (
-                          <Link href={`/admin/queue/${issue._id}`}>
-                            <span style={{ fontSize: "12px", color: "var(--color-civic-green)" }}>Details →</span>
-                          </Link>
-                        )}
+                            👁️ View Details
+                          </button>
+
+                          {/* 3. Cancel / Reject button */}
+                          {canCancel && (
+                            <button
+                              type="button"
+                              onClick={() => setCancelIssue(issue)}
+                              title="Cancel or reject fake/invalid report"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                padding: "4px 8px",
+                                borderRadius: "var(--radius-control)",
+                                border: "1px solid rgba(239, 68, 68, 0.3)",
+                                background: "rgba(239, 68, 68, 0.08)",
+                                color: "var(--color-civic-red, #ef4444)",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              🚫 Cancel
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -124,6 +179,44 @@ export default function IssueQueuePage() {
           </div>
         )}
       </Card>
+
+      {/* 1. Citizen Problem Details Modal (Only Problem, Photo, Location, Description) */}
+      {detailIssueId && (
+        <IssueDetailModal
+          issueId={detailIssueId}
+          onClose={() => setDetailIssueId(null)}
+          onTakeTask={(id) => {
+            const found = (issues ?? []).find((i) => i._id === id);
+            if (found) setTakeTaskIssue(found);
+          }}
+          onCancelIssue={(iss) => setCancelIssue(iss)}
+        />
+      )}
+
+      {/* 2. Take Task & Dispatch Modal */}
+      {takeTaskIssue && (
+        <TakeTaskModal
+          issue={takeTaskIssue}
+          onClose={() => setTakeTaskIssue(null)}
+        />
+      )}
+
+      {/* 3. Mark Completion & Verification Modal */}
+      {completeIssue && (
+        <CompleteTaskModal
+          issue={completeIssue}
+          onClose={() => setCompleteIssue(null)}
+        />
+      )}
+
+      {/* 4. Cancel / Reject Issue Modal */}
+      {cancelIssue && (
+        <CancelIssueModal
+          issue={cancelIssue}
+          onClose={() => setCancelIssue(null)}
+        />
+      )}
     </div>
   );
 }
+

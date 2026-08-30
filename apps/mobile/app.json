@@ -50,7 +50,8 @@
           "icon": "./assets/icon.png",
           "color": "#000000"
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }

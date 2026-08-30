@@ -126,3 +126,19 @@ export async function createIssue(
     return { error: convexErrorMessage(err) };
   }
 }
+
+/**
+ * Deletes / cancels a report filed by the current user.
+ */
+export async function deleteIssue(issueId: string): Promise<{ error: string | null }> {
+  if (!convexClient) return { error: null };
+  try {
+    await convexClient.mutation(api.issues.deleteIssue, {
+      issueId: issueId as Id<"issues">,
+      reason: "Deleted by resident via mobile app",
+    });
+    return { error: null };
+  } catch (err) {
+    return { error: convexErrorMessage(err) };
+  }
+}

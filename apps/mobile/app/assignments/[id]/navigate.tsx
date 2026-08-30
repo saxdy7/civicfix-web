@@ -3,10 +3,11 @@ import { Linking, Platform, Text, View, StyleSheet } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 
 import { Button } from "../../../components/Button";
+import { MapLocationCard } from "../../../components/MapLocationCard";
 import { ScreenContainer } from "../../../components/ScreenContainer";
 import { useAuth } from "../../../lib/auth-context";
 import { fetchAssignmentById } from "../../../lib/repositories/assignments";
-import { color, fontSize, spacing } from "../../../lib/theme";
+import { color, fontFamily, fontSize, spacing } from "../../../lib/theme";
 import type { Assignment } from "../../../lib/types";
 
 function mapsUrl(assignment: Assignment): string {
@@ -37,8 +38,6 @@ export default function NavigateHandoff() {
     const url = mapsUrl(assignment);
     const canOpen = await Linking.canOpenURL(url);
     if (!canOpen) {
-      // Fall back to the universal web URL if the native maps scheme isn't
-      // registered on this device (e.g. no Google/Apple Maps installed).
       const fallback = `https://www.google.com/maps/dir/?api=1&destination=${assignment.latitude},${assignment.longitude}`;
       await Linking.openURL(fallback).catch(() => setError("Couldn't open a maps app on this device."));
       return;
@@ -47,23 +46,26 @@ export default function NavigateHandoff() {
   };
 
   return (
-    <ScreenContainer scroll={false} edges={["left", "right"]}>
+    <ScreenContainer edges={["left", "right"]}>
       <View style={styles.center}>
-        <View style={styles.mapPlaceholder}>
-          <Text style={styles.mapPlaceholderText}>
-            A native map preview isn't wired in yet — hand off to your device's maps app instead.
-          </Text>
-        </View>
-        <Text style={styles.title}>{assignment?.neighborhood ?? "Assignment location"}</Text>
+        <Text style={styles.title}>📍 Navigation & Site Map</Text>
         <Text style={styles.hint}>
-          Hand off to your device's default navigation app to get turn-by-turn directions.
+          Interactive GPS location and navigation route for {assignment?.neighborhood ?? "assigned site"}.
         </Text>
+
+        <MapLocationCard
+          latitude={assignment ? assignment.latitude : null}
+          longitude={assignment ? assignment.longitude : null}
+        />
+
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
         <Button
-          label="Open in Maps app"
+          label="Open in Navigation App (Google/Apple Maps) ↗"
+          size="hero"
           onPress={openInMaps}
           disabled={!assignment}
-          style={{ width: "100%" }}
+          style={{ width: "100%", marginTop: spacing[2] }}
         />
       </View>
     </ScreenContainer>
@@ -74,37 +76,24 @@ const styles = StyleSheet.create({
   center: {
     flex: 1,
     justifyContent: "center",
-    gap: spacing[4],
-  },
-  mapPlaceholder: {
-    height: 220,
-    backgroundColor: color.slate100,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: color.border,
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mapPlaceholderText: {
-    fontSize: fontSize.sm,
-    color: color.mutedForeground,
-    paddingHorizontal: spacing[4],
-    textAlign: "center",
+    gap: spacing[3],
+    paddingVertical: spacing[4],
   },
   title: {
     fontSize: fontSize.xl,
-    fontWeight: "800",
+    fontFamily: fontFamily.bold,
     color: color.foreground,
     textAlign: "center",
   },
   hint: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
+    fontFamily: fontFamily.regular,
     color: color.mutedForeground,
     textAlign: "center",
   },
   errorText: {
     fontSize: fontSize.sm,
+    fontFamily: fontFamily.medium,
     color: color.civicRed,
     textAlign: "center",
   },

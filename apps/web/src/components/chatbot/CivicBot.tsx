@@ -1,16 +1,27 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCivicBot } from "./useCivicBot";
 import { CATEGORY_LABEL, STATUS_LABEL } from "@/lib/status";
+import {
+  IconAiAssistant,
+  IconCamera,
+  IconCheck,
+  IconClose,
+  IconEdit,
+  IconMapPin,
+  IconMic,
+  IconSend,
+} from "@/components/Icons";
 import styles from "./CivicBot.module.css";
 
 interface CivicBotProps {
   className?: string;
   onClose?: () => void;
+  isFullPage?: boolean;
 }
 
-export function CivicBot({ className, onClose }: CivicBotProps) {
+export function CivicBot({ className, onClose, isFullPage }: CivicBotProps) {
   const {
     messages,
     input,
@@ -24,6 +35,9 @@ export function CivicBot({ className, onClose }: CivicBotProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const [isListening, setIsListening] = useState(false);
+  const [geoStatus, setGeoStatus] = useState<string | null>(null);
 
   useEffect(() => {
     listRef.current?.scrollTo({
@@ -47,11 +61,76 @@ export function CivicBot({ className, onClose }: CivicBotProps) {
     reader.readAsDataURL(file);
   };
 
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoStatus("Geolocation is not supported by your browser");
+      return;
+    }
+    setGeoStatus("Locating...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const locMsg = `[Location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}] Report issue near my GPS position`;
+        setInput((prev) => (prev ? `${prev} ${locMsg}` : locMsg));
+        setGeoStatus("GPS Position Attached");
+        setTimeout(() => setGeoStatus(null), 3000);
+      },
+      (err) => {
+        console.error(err);
+        setGeoStatus("Could not fetch GPS position");
+        setTimeout(() => setGeoStatus(null), 3000);
+      },
+    );
+  };
+
+  const handleVoiceListen = () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice recognition is not supported in this browser. Please type your issue.");
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0].transcript)
+        .join("");
+      setInput(transcript);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech error:", event.error);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
+  };
+
   return (
-    <div className={`${styles.container} ${className ?? ""}`}>
+    <div className={`${styles.container} ${isFullPage ? styles.fullPageContainer : ""} ${className ?? ""}`}>
       <div className={styles.header}>
         <div className={styles.headerInfo}>
-          <div className={styles.botAvatar}>🤖</div>
+          <div className={styles.botAvatar}>
+            <IconAiAssistant size={20} />
+          </div>
           <div>
             <h3 className={styles.botTitle}>
               CivicFix Assistant <span className={styles.onlineBadge} />
@@ -66,7 +145,7 @@ export function CivicBot({ className, onClose }: CivicBotProps) {
             onClick={onClose}
             aria-label="Close Assistant"
           >
-            ✕
+            <IconClose size={18} />
           </button>
         )}
       </div>
@@ -172,8 +251,10 @@ export function CivicBot({ className, onClose }: CivicBotProps) {
                         act.variant === "primary" ? styles.actionPrimary : ""
                       }`}
                       onClick={() => handleAction(act)}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
                     >
-                      {act.label}
+                      {act.actionId === "confirm_report" ? <IconCheck size={14} /> : act.actionId === "modify_report" ? <IconEdit size={14} /> : null}
+                      <span>{act.label}</span>
                     </button>
                   ))}
                 </div>
@@ -202,7 +283,8 @@ export function CivicBot({ className, onClose }: CivicBotProps) {
       <div className={styles.footer}>
         {attachedPhoto && (
           <div className={styles.photoPreview}>
-            <span>📷 Photo attached</span>
+            <IconCamera size={14} />
+            <span>Photo attached</span>
             <button
               type="button"
               onClick={() => setAttachedPhoto(null)}
@@ -211,10 +293,19 @@ export function CivicBot({ className, onClose }: CivicBotProps) {
                 background: "none",
                 cursor: "pointer",
                 fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
               }}
             >
-              ✕
+              <IconClose size={14} />
             </button>
+          </div>
+        )}
+
+        {geoStatus && (
+          <div className={styles.photoPreview} style={{ background: "rgba(16, 185, 129, 0.15)", color: "#10b981" }}>
+            <IconMapPin size={14} />
+            <span>{geoStatus}</span>
           </div>
         )}
 
@@ -233,12 +324,34 @@ export function CivicBot({ className, onClose }: CivicBotProps) {
             title="Attach photo"
             aria-label="Attach photo"
           >
-            📷
+            <IconCamera size={18} />
           </button>
+
+          <button
+            type="button"
+            className={styles.iconButton}
+            onClick={handleGetLocation}
+            title="Attach GPS Location"
+            aria-label="Attach GPS Location"
+          >
+            <IconMapPin size={18} />
+          </button>
+
+          <button
+            type="button"
+            className={`${styles.iconButton} ${isListening ? styles.listeningButton : ""}`}
+            onClick={handleVoiceListen}
+            title={isListening ? "Listening... click to stop" : "Speak to report issue"}
+            aria-label="Voice input"
+            style={isListening ? { background: "#ef4444", color: "#fff", borderColor: "#ef4444" } : undefined}
+          >
+            <IconMic size={18} />
+          </button>
+
           <input
             type="text"
             className={styles.inputField}
-            placeholder="Type your civic issue or tracking ID…"
+            placeholder={isListening ? "Listening to your voice..." : "Type or speak your civic issue or tracking ID…"}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -255,7 +368,7 @@ export function CivicBot({ className, onClose }: CivicBotProps) {
             disabled={!input.trim() && !attachedPhoto}
             aria-label="Send message"
           >
-            ➤
+            <IconSend size={16} />
           </button>
         </div>
       </div>

@@ -22,11 +22,11 @@ const STATUS = v.union(
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   reported: ["triaged", "duplicate", "rejected"],
   triaged: ["assigned", "duplicate", "rejected"],
-  assigned: ["in_progress", "triaged"],
-  in_progress: ["pending_verification", "triaged"],
-  pending_verification: ["resolved", "reopened"],
+  assigned: ["in_progress", "triaged", "rejected"],
+  in_progress: ["pending_verification", "triaged", "rejected"],
+  pending_verification: ["resolved", "reopened", "rejected"],
   resolved: ["reopened"],
-  reopened: ["assigned", "triaged"],
+  reopened: ["assigned", "triaged", "rejected"],
   duplicate: [],
   rejected: [],
 };
@@ -260,9 +260,22 @@ export const getById = query({
     const department = issue.departmentId ? await ctx.db.get(issue.departmentId) : null;
     const suggestedDepartment = issue.suggestedDepartmentId ? await ctx.db.get(issue.suggestedDepartmentId) : null;
 
+    const mediaDocs = await ctx.db
+      .query("issueMedia")
+      .withIndex("by_issue", (q) => q.eq("issueId", issue._id))
+      .collect();
+
+    const media = await Promise.all(
+      mediaDocs.map(async (m) => ({
+        ...m,
+        url: await ctx.storage.getUrl(m.storageId),
+      }))
+    );
+
     return {
       ...issue,
       events,
+      media,
       departmentName: department?.name ?? null,
       suggestedDepartmentName: suggestedDepartment?.name ?? null,
     };
@@ -645,3 +658,119 @@ export const reviewFalseReport = mutation({
     }
   },
 });
+
+/**
+ * Allows the resident who created the report (or an authorized staff member) to delete/cancel the report.
+ */
+export const deleteIssue = mutation({
+  args: {
+    issueId: v.id("issues"),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireUser(ctx);
+    const issue = await ctx.db.get(args.issueId);
+    if (!issue || issue.deletedAt) throw new ConvexError("Issue not found or already deleted");
+
+    const staff = await isStaff(ctx, user._id);
+    const isOwner = issue.reporterId === user._id;
+
+    if (!isOwner && !staff) {
+      throw new ConvexError("You are not authorized to delete this report.");
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(args.issueId, {
+      deletedAt: now,
+      updatedAt: now,
+      isPublic: false,
+    });
+
+    await ctx.db.insert("issueEvents", {
+      issueId: args.issueId,
+      status: "rejected",
+      actorId: user._id,
+      note: args.reason ? `Report deleted by resident: ${args.reason}` : "Report deleted by resident.",
+      createdAt: now,
+    });
+
+    await audit(ctx, user._id, "issue.delete", "issues", args.issueId, {
+      deletedBy: user._id,
+      isOwner,
+      reason: args.reason,
+    });
+
+    return { success: true, trackingId: issue.trackingId };
+  },
+});
+
+/**
+ * Allows an administrator or staff to cancel/reject a report (e.g. fake, invalid, spam, or not actionable).
+ */
+export const cancelOrRejectIssue = mutation({
+  args: {
+    issueId: v.id("issues"),
+    reason: v.string(),
+    isFake: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const { user: actor } = await requireRole(ctx, ["department_manager", "administrator"]);
+    const issue = await ctx.db.get(args.issueId);
+    if (!issue || issue.deletedAt) throw new ConvexError("Issue not found");
+
+    const reason = args.reason.trim() || (args.isFake ? "Cancelled as fake / invalid report" : "Cancelled by administrator");
+    const now = Date.now();
+
+    await ctx.db.patch(issue._id, {
+      status: "rejected",
+      updatedAt: now,
+      version: issue.version + 1,
+      falseReportStatus: args.isFake ? "confirmed_malicious" : issue.falseReportStatus,
+    });
+
+    await ctx.db.insert("issueEvents", {
+      issueId: issue._id,
+      status: "rejected",
+      actorId: actor._id,
+      note: `Report cancelled by administrator: ${reason}`,
+      createdAt: now,
+    });
+
+    // Notify citizen
+    if (issue.reporterId !== actor._id) {
+      await notify(
+        ctx,
+        issue.reporterId,
+        issue._id,
+        "Report Cancelled / Closed",
+        `Your report ${issue.trackingId} was cancelled by city administration. Reason: ${reason}`,
+      );
+    }
+
+    // If marked as confirmed fake report, adjust trust score of reporter
+    if (args.isFake && issue.reporterId) {
+      const reporter = await ctx.db.get(issue.reporterId);
+      if (reporter) {
+        await ctx.db.insert("trustScoreEvents", {
+          userId: reporter._id,
+          delta: -15,
+          reason: `Report cancelled as fake/invalid: ${reason}`,
+          relatedIssueId: issue._id,
+          actorId: actor._id,
+          createdAt: now,
+        });
+        const newScore = Math.max(0, reporter.trustScore - 15);
+        await ctx.db.patch(reporter._id, { trustScore: newScore, updatedAt: now });
+      }
+    }
+
+    await audit(ctx, actor._id, "issue.cancel_reject", "issues", issue._id, {
+      reason,
+      isFake: args.isFake,
+    });
+
+    return { success: true, trackingId: issue.trackingId };
+  },
+});
+
+

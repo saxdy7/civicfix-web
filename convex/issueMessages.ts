@@ -3,7 +3,7 @@ import { v, ConvexError } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { getRoles, isStaff, requireUser } from "./lib/auth";
+import { getRoles, getViewer, isStaff, requireUser } from "./lib/auth";
 
 const MAX_MESSAGE_LENGTH = 2000;
 
@@ -12,17 +12,9 @@ type Ctx = QueryCtx | MutationCtx;
 async function canAccessIssueChat(ctx: Ctx, userId: Id<"users">, issue: Doc<"issues">): Promise<boolean> {
   if (issue.reporterId === userId) return true;
   const roles = await getRoles(ctx, userId);
-  if (roles.includes("administrator") || roles.includes("auditor")) return true;
-  if (roles.includes("department_manager")) {
-    const userRoleRows = await ctx.db
-      .query("userRoles")
-      .withIndex("by_user_and_role", (q) => q.eq("userId", userId).eq("role", "department_manager"))
-      .collect();
-    if (userRoleRows.some((r) => !r.departmentId || r.departmentId === issue.departmentId)) {
-      return true;
-    }
-  }
-  if (roles.includes("field_worker")) {
+  const staff = await isStaff(ctx, userId);
+  if (staff) {
+    if (!issue.departmentId) return true;
     const assignments = await ctx.db
       .query("assignments")
       .withIndex("by_issue", (q) => q.eq("issueId", issue._id))
@@ -38,7 +30,8 @@ async function canAccessIssueChat(ctx: Ctx, userId: Id<"users">, issue: Doc<"iss
 export const listForIssue = query({
   args: { issueId: v.id("issues") },
   handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
+    const user = await getViewer(ctx);
+    if (!user) return [];
     const issue = await ctx.db.get(args.issueId);
     if (!issue || issue.deletedAt) return [];
 
@@ -55,7 +48,10 @@ export const listForIssue = query({
 export const paginateForIssue = query({
   args: { issueId: v.id("issues"), paginationOpts: paginationOptsValidator },
   handler: async (ctx, args) => {
-    const user = await requireUser(ctx);
+    const user = await getViewer(ctx);
+    if (!user) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
     const issue = await ctx.db.get(args.issueId);
     if (!issue || issue.deletedAt) {
       return { page: [], isDone: true, continueCursor: "" };

@@ -46,6 +46,8 @@ interface AuthContextValue {
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
   /** Completes a reset started by requestPasswordReset. */
   confirmPasswordReset: (code: string, newPassword: string) => Promise<{ error: string | null }>;
+  /** 1-click Demo sign-in for testing resident, worker, and admin roles. */
+  signInWithDemoRole: (role: "resident" | "worker" | "admin") => Promise<{ error: string | null }>;
   /** Only relevant when Clerk isn't configured — enters the demo fallback. */
   continueAsDemo: () => void;
 }
@@ -90,6 +92,17 @@ function DemoOnlyAuthProvider({ children }: PropsWithChildren) {
       signOut: async () => setUser(null),
       requestPasswordReset: async () => ({ error: "Not available in demo mode." }),
       confirmPasswordReset: async () => ({ error: "Not available in demo mode." }),
+      signInWithDemoRole: async (demoRole) => {
+        setUser({
+          id: `demo-${demoRole}` as Id<"users">,
+          name: demoRole === "worker" ? "Demo Field Worker" : demoRole === "admin" ? "Demo Administrator" : "Demo Resident",
+          email: `${demoRole}_demo@civicfix.local`,
+          roles: [demoRole === "worker" ? "field_worker" : demoRole === "admin" ? "administrator" : "citizen"],
+          role: demoRole === "worker" ? "field_worker" : "citizen",
+          isDemo: true,
+        });
+        return { error: null };
+      },
       continueAsDemo: () => setUser(DEMO_USER),
     }),
     [user],
@@ -199,15 +212,18 @@ function ClerkAuthProvider({ children }: PropsWithChildren) {
         }
         try {
           // Residents always sign up as `citizen` — Convex's ensureUser
-          // mutation above is the only place a role is granted at signup,
-          // and it never accepts one from the client.
+          // mutation above is the only place a role is granted at signup.
           const [firstName, ...rest] = fullName.trim().split(" ");
-          await signUp.create({
+          const result = await signUp.create({
             emailAddress: email.trim(),
             password,
             firstName,
             lastName: rest.join(" ") || undefined,
           });
+          if (result.status === "complete") {
+            await setActiveSignUp({ session: result.createdSessionId });
+            return { error: null, needsConfirmation: false };
+          }
           await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
           return { error: null, needsConfirmation: true };
         } catch (err) {
@@ -252,6 +268,61 @@ function ClerkAuthProvider({ children }: PropsWithChildren) {
           }
           await setActiveSignIn({ session: result.createdSessionId });
           return { error: null };
+        } catch (err) {
+          return { error: authErrorMessage(err) };
+        }
+      },
+      signInWithDemoRole: async (demoRole) => {
+        if (!signInLoaded || !signIn) return { error: "Not ready yet — try again in a moment." };
+        try {
+          try { await clerkSignOut(); } catch { /* ignore */ }
+          const candidateUrls = [
+            "http://10.33.3.78:3000/api/auth/demo-token",
+            "http://localhost:3000/api/auth/demo-token",
+            "http://127.0.0.1:3000/api/auth/demo-token",
+          ];
+          let token: string | null = null;
+          for (const u of candidateUrls) {
+            try {
+              const res = await fetch(u, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ role: demoRole }),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.token) {
+                  token = data.token;
+                  break;
+                }
+              }
+            } catch {
+              // Try next URL
+            }
+          }
+
+          if (token) {
+            const result = await signIn.create({ strategy: "ticket", ticket: token });
+            if (result.status === "complete") {
+              await setActiveSignIn({ session: result.createdSessionId });
+              return { error: null };
+            }
+          }
+
+          // If web server token endpoint wasn't reached, try standard password fallback
+          const pass = "CivicFixDemo!2026";
+          const emailMap = {
+            resident: "resident_demo@example.com",
+            worker: "worker_demo@example.com",
+            admin: "civicfix_admin_demo@example.com",
+          };
+          const fallbackRes = await signIn.create({ identifier: emailMap[demoRole], password: pass });
+          if (fallbackRes.status === "complete") {
+            await setActiveSignIn({ session: fallbackRes.createdSessionId });
+            return { error: null };
+          }
+
+          return { error: "Could not create demo session. You can also sign up with a new email." };
         } catch (err) {
           return { error: authErrorMessage(err) };
         }

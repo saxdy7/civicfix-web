@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CATEGORY_LABEL, SEVERITY_LABEL } from "@/lib/status";
+import { SubmittedReportActions } from "./SubmittedReportActions";
 
 import styles from "../../resident.module.css";
 
@@ -70,40 +71,7 @@ export default async function ReportSubmittedPage({
       </p>
 
       <div className={styles.actions} style={{ justifyContent: "center" }}>
-        <Link
-          href="/app/reports"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            height: 44,
-            padding: "0 var(--space-5)",
-            borderRadius: "var(--radius-pill)",
-            background: "var(--color-inverse-background)",
-            color: "var(--color-inverse-foreground)",
-            textDecoration: "none",
-            fontWeight: 600,
-            fontSize: "var(--font-size-sm)",
-          }}
-        >
-          View my reports
-        </Link>
-        <Link
-          href="/app/report"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            height: 44,
-            padding: "0 var(--space-5)",
-            borderRadius: "var(--radius-pill)",
-            border: "1px solid var(--color-border)",
-            color: "var(--color-foreground)",
-            textDecoration: "none",
-            fontWeight: 600,
-            fontSize: "var(--font-size-sm)",
-          }}
-        >
-          Report another issue
-        </Link>
+        <SubmittedReportActions issueId={get("id")} trackingId={trackingId} />
       </div>
     </div>
   );

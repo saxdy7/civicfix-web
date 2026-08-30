@@ -39,6 +39,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="assistant"
+        options={{
+          title: "AI Chat",
+          href: isFieldWorker ? null : undefined,
+          tabBarIcon: ({ color: c, size }) => <Ionicons name="sparkles" size={size} color={c} />,
+        }}
+      />
+      <Tabs.Screen
         name="report"
         options={{
           title: "Report",

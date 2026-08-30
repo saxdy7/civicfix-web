@@ -25,6 +25,8 @@ const COLUMNS: { key: AssignmentStatus; label: string }[] = [
 
 export default function AssignmentBoardPage() {
   const [viewMode, setViewMode] = useState<"kanban" | "route">("kanban");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [activeModalTask, setActiveModalTask] = useState<{
     issue: Doc<"issues">;
     assignmentId?: Id<"assignments">;
@@ -36,7 +38,17 @@ export default function AssignmentBoardPage() {
 
   const relevant = (assignments ?? [])
     .filter((a) => a.issue && ASSIGNMENT_STATUS_BY_ISSUE_STATUS[a.issue.status])
-    .map((a) => ({ ...a, status: ASSIGNMENT_STATUS_BY_ISSUE_STATUS[a.issue!.status]! }));
+    .map((a) => ({ ...a, status: ASSIGNMENT_STATUS_BY_ISSUE_STATUS[a.issue!.status]! }))
+    .filter((a) => {
+      const matchesCategory = categoryFilter === "all" || a.issue!.category === categoryFilter;
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        a.issue!.trackingId.toLowerCase().includes(q) ||
+        a.issue!.description.toLowerCase().includes(q) ||
+        a.workerName.toLowerCase().includes(q);
+      return matchesCategory && matchesSearch;
+    });
 
   const activeRouteTasks = (assignments ?? [])
     .filter((a) => a.issue && (a.issue.status === "assigned" || a.issue.status === "in_progress"))
@@ -83,6 +95,47 @@ export default function AssignmentBoardPage() {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap" }}>
+        <input
+          type="text"
+          placeholder="🔍 Search tracking ID, worker, or description…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            flex: 1,
+            minWidth: "220px",
+            padding: "8px 14px",
+            borderRadius: "6px",
+            border: "1px solid var(--color-border, #333)",
+            background: "var(--color-surface, #18181b)",
+            color: "var(--color-foreground, #fff)",
+            fontSize: "0.875rem",
+          }}
+        />
+
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          style={{
+            padding: "8px 14px",
+            borderRadius: "6px",
+            border: "1px solid var(--color-border, #333)",
+            background: "var(--color-surface, #18181b)",
+            color: "var(--color-foreground, #fff)",
+            fontSize: "0.875rem",
+          }}
+        >
+          <option value="all">All Categories</option>
+          <option value="pothole">Pothole</option>
+          <option value="streetlight">Streetlight</option>
+          <option value="garbage">Garbage & Waste</option>
+          <option value="water">Water / Drainage</option>
+          <option value="graffiti">Graffiti</option>
+          <option value="other">Other</option>
+        </select>
       </div>
 
       {assignments === undefined ? (

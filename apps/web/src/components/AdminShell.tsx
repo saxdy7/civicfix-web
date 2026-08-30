@@ -26,7 +26,6 @@ function buildNavGroups(isAdmin: boolean) {
     {
       label: "Operations",
       items: [
-        { href: "/admin/departments", label: "Departments & SLA" },
         { href: "/admin/community", label: "Community votes" },
         { href: "/admin/trust", label: "Trust & false reports" },
         { href: "/admin/analytics", label: "Analytics" },

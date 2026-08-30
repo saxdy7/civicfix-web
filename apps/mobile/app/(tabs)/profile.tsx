@@ -1,17 +1,15 @@
 import { useEffect, useState } from "react";
 import * as Notifications from "expo-notifications";
-import { Linking, Switch, Text, View, StyleSheet } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Button } from "../../components/Button";
-import { Card } from "../../components/Card";
-import { ScreenContainer } from "../../components/ScreenContainer";
 import { useAuth } from "../../lib/auth-context";
 import { setReducedMotionOverride, useReducedMotion } from "../../lib/preferences";
 import { registerForPushNotifications } from "../../lib/push-notifications";
-import { color, fontFamily, fontSize, spacing } from "../../lib/theme";
+import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
 
 function roleLabel(role: string): string {
   return role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -45,188 +43,349 @@ export default function Profile() {
   };
 
   return (
-    <ScreenContainer>
-      <Card style={styles.identityCard}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials(user.name)}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{user.name}</Text>
-          <Text style={styles.email}>{user.email}</Text>
-        </View>
-      </Card>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.pageHeaderTitle}>Citizen Profile</Text>
 
-      <View style={styles.roleRow}>
-        <Ionicons name="shield-outline" size={16} color={color.mutedForeground} />
-        <Text style={styles.roleText}>
-          {user.roles.map(roleLabel).join(", ") || "Citizen"}
-        </Text>
-      </View>
-      {/*
-        Role is intentionally read-only — granted only via userRoles in
-        Convex by an administrator or the signup trigger. There is no
-        self-service way to change it here; that was the old build's most
-        dangerous shortcut and it has been removed entirely.
-      */}
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
-        <Card style={styles.settingRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.settingLabel}>Push notifications</Text>
-            <Text style={styles.settingHint}>
-              {notifStatus === "granted"
-                ? "Enabled — you'll be notified about status changes."
-                : notifStatus === "denied"
-                  ? "Off — enable in Settings to get notified."
-                  : "Get notified when a report you filed changes status."}
-            </Text>
+        {/* Identity Card */}
+        <View style={styles.identityCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials(user.name)}</Text>
           </View>
-          <Button
-            label={notifStatus === "granted" ? "Manage" : "Enable"}
-            variant="secondary"
-            onPress={handleToggleNotifications}
-          />
-        </Card>
-      </View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={styles.name}>{user.name}</Text>
+            <Text style={styles.email}>{user.email}</Text>
+            <View style={styles.badgeRow}>
+              <View style={styles.roleBadge}>
+                <Ionicons name="shield-checkmark" size={12} color="#ffffff" />
+                <Text style={styles.roleText}>{user.roles.map(roleLabel).join(", ") || "Citizen"}</Text>
+              </View>
+              <View style={styles.trustBadge}>
+                <Text style={styles.trustBadgeText}>⚡ 100 Trust Karma</Text>
+              </View>
+            </View>
+          </View>
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Privacy</Text>
-        <Card style={{ gap: spacing[1] }}>
+        {/* AI Engine Status Card */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.cardHeaderTitle}>CivicFix AI Intelligence</Text>
+          <View style={styles.aiInnerRow}>
+            <View style={styles.aiIconWrap}>
+              <Ionicons name="sparkles" size={18} color="#000000" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.aiModelName}>Groq Llama 3.1 & Vision Engine</Text>
+              <Text style={styles.aiModelDetail}>Automatic defect triage, GPS pinning & live SLA</Text>
+            </View>
+            <View style={styles.activePill}>
+              <View style={styles.greenDot} />
+              <Text style={styles.activePillText}>Active</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Notifications & Motion Settings */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.cardHeaderTitle}>Preferences & Alerts</Text>
+
+          <View style={styles.settingRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingLabel}>Push Notifications</Text>
+              <Text style={styles.settingHint}>Get real-time updates when city crews resolve your issues.</Text>
+            </View>
+            <Pressable
+              style={styles.actionPillBtn}
+              onPress={handleToggleNotifications}
+            >
+              <Text style={styles.actionPillText}>{notifStatus === "granted" ? "Manage" : "Enable"}</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.settingRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingLabel}>Reduce Motion</Text>
+              <Text style={styles.settingHint}>Disable spring transitions and map animations.</Text>
+            </View>
+            <Switch
+              value={reducedMotion}
+              onValueChange={(v) => setReducedMotionOverride(v)}
+              trackColor={{ true: "#ffffff", false: "#27272a" }}
+              thumbColor={reducedMotion ? "#000000" : "#8e8e8e"}
+            />
+          </View>
+        </View>
+
+        {/* Privacy Assurance */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.cardHeaderTitle}>Privacy & Location Security</Text>
           <View style={styles.privacyRow}>
-            <Ionicons name="location-outline" size={16} color={color.mutedForeground} />
-            <Text style={styles.settingHint}>
-              Your exact coordinates and contact details are visible only to authorized staff. Public
-              maps show a generalized area.
+            <Ionicons name="lock-closed" size={16} color="#34d399" />
+            <Text style={styles.privacyText}>
+              Exact GPS coordinates are encrypted and accessible only to dispatched municipal workers. Public neighborhood feeds display generalized approximate pins.
             </Text>
           </View>
-        </Card>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Accessibility</Text>
-        <Card style={styles.settingRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.settingLabel}>Reduce motion</Text>
-            <Text style={styles.settingHint}>Turns off ripple, spring, and transition animations.</Text>
-          </View>
-          <Switch
-            value={reducedMotion}
-            onValueChange={(v) => setReducedMotionOverride(v)}
-            trackColor={{ true: color.civicBlue, false: color.surfaceMuted }}
-          />
-        </Card>
-      </View>
-
-      {user.role !== "field_worker" ? (
-        <View style={styles.section}>
-          <Button
-            label="Municipal employee? Request staff access"
-            variant="secondary"
-            onPress={() => router.push("/staff-request")}
-          />
         </View>
-      ) : null}
 
-      <View style={styles.section}>
-        <Button
-          label="Accessibility & privacy details"
-          variant="secondary"
-          onPress={() => Linking.openURL("https://civicfix-web.vercel.app/accessibility")}
-        />
-        <Button
-          label="Help & support"
-          variant="secondary"
-          onPress={() => Linking.openURL("mailto:support@civicfix.city")}
-        />
-        <Button label="Sign out" variant="danger" onPress={signOut} />
-      </View>
+        {/* Actions & Sign Out */}
+        <View style={{ gap: 10, marginTop: 4 }}>
+          {user.role !== "field_worker" ? (
+            <Pressable
+              style={styles.secondaryActionBtn}
+              onPress={() => router.push("/staff-request")}
+            >
+              <Ionicons name="business-outline" size={16} color="#ffffff" />
+              <Text style={styles.secondaryActionBtnText}>Municipal Staff Access Request</Text>
+            </Pressable>
+          ) : null}
 
-      <Text style={styles.version}>CivicFix v{Constants.expoConfig?.version ?? "1.0.0"}</Text>
-    </ScreenContainer>
+          <Pressable
+            style={styles.signOutBtn}
+            onPress={signOut}
+          >
+            <Ionicons name="log-out-outline" size={16} color="#ef4444" />
+            <Text style={styles.signOutBtnText}>Sign out</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.version}>CivicFix v{Constants.expoConfig?.version ?? "1.0.0"}</Text>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
+  scrollContainer: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
+  scrollContent: {
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[2],
+    paddingBottom: spacing[8] + 20,
+    gap: spacing[4],
+  },
+  pageHeaderTitle: {
+    fontSize: 26,
+    fontFamily: fontFamily.bold,
+    color: "#ffffff",
+    letterSpacing: -0.5,
+  },
   identityCard: {
+    backgroundColor: "#121214",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#27272a",
     flexDirection: "row",
     alignItems: "center",
     gap: spacing[3],
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: color.inverseBackground,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
-    fontSize: fontSize.md,
+    fontSize: 18,
     fontFamily: fontFamily.bold,
-    color: color.inverseForeground,
+    color: "#000000",
   },
   name: {
-    fontSize: fontSize.lg,
+    fontSize: 18,
     fontFamily: fontFamily.bold,
-    color: color.foreground,
+    color: "#ffffff",
   },
   email: {
-    fontSize: fontSize.sm,
+    fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: color.mutedForeground,
+    color: "#8e8e8e",
   },
-  roleRow: {
+  badgeRow: {
+    flexDirection: "row",
+    gap: spacing[2],
+    marginTop: 4,
+    alignItems: "center",
+  },
+  roleBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing[2],
-    alignSelf: "flex-start",
-    backgroundColor: color.surfaceMuted,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[1],
-    borderRadius: 999,
+    gap: 4,
+    backgroundColor: "#18181b",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: "#27272a",
   },
   roleText: {
-    fontSize: fontSize.xs,
+    fontSize: 10,
     fontFamily: fontFamily.semibold,
-    color: color.mutedForeground,
+    color: "#ffffff",
   },
-  section: {
-    gap: spacing[2],
+  trustBadge: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
   },
-  sectionTitle: {
-    fontSize: fontSize.sm,
-    fontFamily: fontFamily.semibold,
-    color: color.mutedForeground,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+  trustBadgeText: {
+    fontSize: 10,
+    fontFamily: fontFamily.bold,
+    color: "#f59e0b",
+  },
+  sectionCard: {
+    backgroundColor: "#121214",
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#27272a",
+    gap: spacing[3],
+  },
+  cardHeaderTitle: {
+    fontSize: 14,
+    fontFamily: fontFamily.bold,
+    color: "#ffffff",
+  },
+  aiInnerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  aiIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiModelName: {
+    fontSize: 13,
+    fontFamily: fontFamily.bold,
+    color: "#ffffff",
+  },
+  aiModelDetail: {
+    fontSize: 11,
+    fontFamily: fontFamily.regular,
+    color: "#8e8e8e",
+    marginTop: 1,
+  },
+  activePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  greenDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "#22c55e",
+  },
+  activePillText: {
+    fontSize: 10,
+    fontFamily: fontFamily.bold,
+    color: "#22c55e",
   },
   settingRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: spacing[3],
+    gap: 12,
   },
   settingLabel: {
-    fontSize: fontSize.md,
-    fontFamily: fontFamily.medium,
-    color: color.foreground,
+    fontSize: 13,
+    fontFamily: fontFamily.semibold,
+    color: "#ffffff",
   },
   settingHint: {
-    fontSize: fontSize.xs,
+    fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: color.mutedForeground,
+    color: "#8e8e8e",
     marginTop: 2,
+    lineHeight: 15,
+  },
+  actionPillBtn: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+  },
+  actionPillText: {
+    fontSize: 12,
+    fontFamily: fontFamily.bold,
+    color: "#000000",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#1e1e24",
   },
   privacyRow: {
     flexDirection: "row",
-    gap: spacing[2],
+    gap: 10,
     alignItems: "flex-start",
   },
-  version: {
-    fontSize: fontSize.xs,
+  privacyText: {
+    flex: 1,
+    fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: color.dimForeground,
+    color: "#8e8e8e",
+    lineHeight: 17,
+  },
+  secondaryActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#18181b",
+    height: 48,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: "#27272a",
+  },
+  secondaryActionBtnText: {
+    fontSize: 13,
+    fontFamily: fontFamily.bold,
+    color: "#ffffff",
+  },
+  signOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    height: 48,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.25)",
+  },
+  signOutBtnText: {
+    fontSize: 13,
+    fontFamily: fontFamily.bold,
+    color: "#ef4444",
+  },
+  version: {
+    fontSize: 11,
+    fontFamily: fontFamily.regular,
+    color: "#6b7280",
     textAlign: "center",
-    marginTop: spacing[2],
+    marginTop: 4,
   },
 });

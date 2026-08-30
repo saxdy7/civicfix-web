@@ -3,8 +3,8 @@ import styles from "../resident.module.css";
 
 export default function AssistantPage() {
   return (
-    <div>
-      <div className={styles.pageHeader}>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 130px)", minHeight: "650px" }}>
+      <div className={styles.pageHeader} style={{ marginBottom: "16px" }}>
         <h1 className={styles.title}>CivicFix AI Assistant</h1>
         <p className={styles.subtitle}>
           Your automated assistant for instant civic issue reporting, status queries, and municipal
@@ -12,8 +12,8 @@ export default function AssistantPage() {
         </p>
       </div>
 
-      <div style={{ height: "620px", maxWidth: "800px" }}>
-        <CivicBot />
+      <div style={{ flex: 1, minHeight: "540px", width: "100%", maxWidth: "1000px" }}>
+        <CivicBot isFullPage />
       </div>
     </div>
   );
