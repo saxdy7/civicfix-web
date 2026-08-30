@@ -2,26 +2,37 @@ import { useState } from "react";
 import { Pressable, Text, TextInput, View, StyleSheet, type TextInputProps } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { color, fontFamily, fontSize, radius, spacing } from "../lib/theme";
+import { useTheme } from "../lib/theme-context";
+import { fontFamily, fontSize, radius, spacing } from "../lib/theme";
 
 interface TextFieldProps extends TextInputProps {
   label: string;
   error?: string;
   hint?: string;
-  /** Adds a show/hide toggle instead of a plain secureTextEntry field. */
   isPassword?: boolean;
 }
 
 export function TextField({ label, error, hint, isPassword, style, secureTextEntry, ...props }: TextFieldProps) {
+  const { colors } = useTheme();
   const [reveal, setReveal] = useState(false);
 
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: colors.foreground }]}>{label}</Text>
       <View style={styles.inputRow}>
         <TextInput
-          style={[styles.input, error && styles.inputError, isPassword && styles.inputWithIcon, style]}
-          placeholderTextColor={color.dimForeground}
+          style={[
+            styles.input,
+            {
+              borderColor: colors.border,
+              color: colors.foreground,
+              backgroundColor: colors.surface,
+            },
+            error && { borderColor: colors.civicRed },
+            isPassword && styles.inputWithIcon,
+            style,
+          ]}
+          placeholderTextColor={colors.dimForeground}
           secureTextEntry={isPassword ? !reveal : secureTextEntry}
           {...props}
         />
@@ -33,16 +44,16 @@ export function TextField({ label, error, hint, isPassword, style, secureTextEnt
             style={styles.iconButton}
             hitSlop={8}
           >
-            <Ionicons name={reveal ? "eye-off-outline" : "eye-outline"} size={20} color={color.mutedForeground} />
+            <Ionicons name={reveal ? "eye-off-outline" : "eye-outline"} size={20} color={colors.mutedForeground} />
           </Pressable>
         ) : null}
       </View>
       {error ? (
-        <Text style={styles.error} accessibilityLiveRegion="polite">
+        <Text style={[styles.error, { color: colors.civicRed }]} accessibilityLiveRegion="polite">
           {error}
         </Text>
       ) : hint ? (
-        <Text style={styles.hint}>{hint}</Text>
+        <Text style={[styles.hint, { color: colors.mutedForeground }]}>{hint}</Text>
       ) : null}
     </View>
   );
@@ -55,7 +66,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: fontSize.sm,
     fontFamily: fontFamily.semibold,
-    color: color.foreground,
   },
   inputRow: {
     position: "relative",
@@ -64,13 +74,10 @@ const styles = StyleSheet.create({
   input: {
     minHeight: 44,
     borderWidth: 1,
-    borderColor: color.border,
     borderRadius: radius.control,
     paddingHorizontal: spacing[3],
     fontSize: fontSize.md,
     fontFamily: fontFamily.regular,
-    color: color.foreground,
-    backgroundColor: color.surface,
   },
   inputWithIcon: {
     paddingRight: spacing[6],
@@ -80,17 +87,12 @@ const styles = StyleSheet.create({
     right: spacing[3],
     padding: spacing[1],
   },
-  inputError: {
-    borderColor: color.civicRed,
-  },
   error: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.regular,
-    color: color.civicRed,
   },
   hint: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.regular,
-    color: color.mutedForeground,
   },
 });

@@ -4,7 +4,8 @@ import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 
-import { color, fontFamily, fontSize, radius, spacing } from "../lib/theme";
+import { useTheme } from "../lib/theme-context";
+import { fontFamily, fontSize, radius, spacing } from "../lib/theme";
 
 interface MapLocationCardProps {
   latitude: number | null;
@@ -60,6 +61,7 @@ export function MapLocationCard({
   locating = false,
   onAddressResolved,
 }: MapLocationCardProps) {
+  const { colors } = useTheme();
   const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
   const [zoom, setZoom] = useState(16);
@@ -116,7 +118,6 @@ export function MapLocationCard({
       for (let dx = -1; dx <= 1; dx++) {
         const x = tileX + dx;
         const y = tileY + dy;
-        // Clean Humanitarian OSM raster tiles (crisp streets, no API key watermark)
         const hotOsmUrl = `https://a.tile.openstreetmap.fr/hot/${zoom}/${x}/${y}.png`;
         const standardOsmUrl = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
         tiles.push({
@@ -160,7 +161,7 @@ export function MapLocationCard({
   const STEP = 0.00025;
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       {latitude !== null && longitude !== null ? (
         <View style={styles.mapContainer}>
           {/* Tile Grid Container */}
@@ -263,17 +264,17 @@ export function MapLocationCard({
           </Pressable>
         </View>
       ) : (
-        <View style={styles.emptyMapContainer}>
-          <Ionicons name="map-outline" size={32} color={color.mutedForeground} />
-          <Text style={styles.emptyMapTitle}>No location captured yet</Text>
-          <Text style={styles.emptyMapSub}>
+        <View style={[styles.emptyMapContainer, { backgroundColor: colors.surfaceMuted }]}>
+          <Ionicons name="map-outline" size={32} color={colors.mutedForeground} />
+          <Text style={[styles.emptyMapTitle, { color: colors.foreground }]}>No location captured yet</Text>
+          <Text style={[styles.emptyMapSub, { color: colors.mutedForeground }]}>
             Tap below to use your live device GPS coordinates.
           </Text>
         </View>
       )}
 
       {/* Address & Coordinate Metadata */}
-      <View style={styles.infoSection}>
+      <View style={[styles.infoSection, { backgroundColor: colors.surface }]}>
         {latitude !== null && longitude !== null ? (
           <View style={styles.detailsCol}>
             <View style={styles.locationHeaderRow}>
@@ -281,14 +282,14 @@ export function MapLocationCard({
               <Text style={styles.statusLiveText}>
                 {accuracyMeters ? `GPS Live · ±${Math.round(accuracyMeters)}m accuracy` : "Custom Pin Pinned"}
               </Text>
-              <Text style={styles.hintSwapText}>(Use arrows on map to adjust pin)</Text>
+              <Text style={[styles.hintSwapText, { color: colors.mutedForeground }]}>(Use arrows on map to adjust pin)</Text>
             </View>
 
-            <Text style={styles.addressText} numberOfLines={2}>
+            <Text style={[styles.addressText, { color: colors.foreground }]} numberOfLines={2}>
               {resolving ? "Resolving street address…" : resolvedAddress || "Locating street name…"}
             </Text>
 
-            <Text style={styles.coordText}>
+            <Text style={[styles.coordText, { color: colors.mutedForeground }]}>
               Latitude: {latitude.toFixed(6)} · Longitude: {longitude.toFixed(6)}
             </Text>
           </View>
@@ -326,10 +327,8 @@ export function MapLocationCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: color.surfaceMuted,
     borderRadius: radius.card,
     borderWidth: 1,
-    borderColor: color.border,
     overflow: "hidden",
   },
   mapContainer: {
@@ -453,18 +452,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: spacing[3],
-    backgroundColor: "rgba(15, 23, 42, 0.4)",
     gap: 6,
   },
   emptyMapTitle: {
     fontSize: fontSize.sm,
     fontFamily: fontFamily.semibold,
-    color: color.foreground,
   },
   emptyMapSub: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.regular,
-    color: color.mutedForeground,
     textAlign: "center",
   },
   infoSection: {
@@ -485,28 +481,25 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 3.5,
-    backgroundColor: color.civicGreen,
+    backgroundColor: "#16a34a",
   },
   statusLiveText: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.semibold,
-    color: color.civicGreen,
+    color: "#16a34a",
   },
   hintSwapText: {
     fontSize: 10,
     fontFamily: fontFamily.regular,
-    color: color.mutedForeground,
   },
   addressText: {
     fontSize: fontSize.sm,
     fontFamily: fontFamily.bold,
-    color: color.foreground,
     lineHeight: 18,
   },
   coordText: {
     fontSize: 11,
     fontFamily: fontFamily.regular,
-    color: color.mutedForeground,
     marginTop: 2,
   },
   locationBtn: {
@@ -514,7 +507,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing[2],
-    backgroundColor: color.civicBlue,
+    backgroundColor: "#2563eb",
     paddingVertical: spacing[3],
     paddingHorizontal: spacing[3],
     borderRadius: radius.pill,

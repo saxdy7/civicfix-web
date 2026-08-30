@@ -1,7 +1,8 @@
 import { Text, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { color, fontFamily, fontSize, spacing } from "../lib/theme";
+import { useTheme } from "../lib/theme-context";
+import { fontFamily, fontSize, spacing } from "../lib/theme";
 
 interface EmptyStateProps {
   title: string;
@@ -11,15 +12,17 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({ title, description, icon, action }: EmptyStateProps) {
+  const { colors } = useTheme();
+
   return (
     <View style={styles.wrapper} accessibilityRole="text">
       {icon ? (
-        <View style={styles.iconWrap}>
-          <Ionicons name={icon} size={28} color={color.mutedForeground} />
+        <View style={[styles.iconWrap, { backgroundColor: colors.surfaceMuted }]}>
+          <Ionicons name={icon} size={28} color={colors.mutedForeground} />
         </View>
       ) : null}
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.description}>{description}</Text>
+      <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
+      <Text style={[styles.description, { color: colors.mutedForeground }]}>{description}</Text>
       {action ? <View style={{ marginTop: spacing[2], width: "100%" }}>{action}</View> : null}
     </View>
   );
@@ -35,7 +38,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: color.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing[1],
@@ -43,12 +45,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: fontSize.md,
     fontFamily: fontFamily.semibold,
-    color: color.foreground,
   },
   description: {
     fontSize: fontSize.sm,
     fontFamily: fontFamily.regular,
-    color: color.mutedForeground,
     textAlign: "center",
     lineHeight: 20,
   },

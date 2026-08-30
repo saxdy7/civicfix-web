@@ -8,8 +8,9 @@ import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { ScreenContainer } from "../../components/ScreenContainer";
 import { useAuth } from "../../lib/auth-context";
+import { useTheme } from "../../lib/theme-context";
 import { registerForPushNotifications } from "../../lib/push-notifications";
-import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
+import { fontFamily, fontSize, radius, spacing } from "../../lib/theme";
 
 const NEXT_STEPS = [
   { icon: "eye-outline" as const, label: "A staff member reviews your report" },
@@ -20,6 +21,7 @@ const NEXT_STEPS = [
 export default function ReportConfirmation() {
   const { trackingId } = useLocalSearchParams<{ trackingId: string }>();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const scale = useRef(new Animated.Value(0.6)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const [notifyState, setNotifyState] = useState<"idle" | "asking" | "on" | "denied">("idle");
@@ -42,27 +44,27 @@ export default function ReportConfirmation() {
   return (
     <ScreenContainer scroll={false}>
       <View style={styles.center}>
-        <Animated.View style={[styles.checkWrap, { transform: [{ scale }], opacity }]}>
-          <Ionicons name="checkmark" size={40} color={color.inverseForeground} />
+        <Animated.View style={[styles.checkWrap, { transform: [{ scale }], opacity, backgroundColor: colors.civicGreen }]}>
+          <Ionicons name="checkmark" size={40} color="#ffffff" />
         </Animated.View>
 
-        <Text style={styles.title}>Report submitted</Text>
-        <View style={styles.statusPill}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Reported</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>Report submitted</Text>
+        <View style={[styles.statusPill, { backgroundColor: colors.civicBlueSoft }]}>
+          <View style={[styles.statusDot, { backgroundColor: colors.civicBlue }]} />
+          <Text style={[styles.statusText, { color: colors.civicBlue }]}>Reported</Text>
         </View>
 
         <Card style={styles.trackingCard} tone="muted">
-          <Text style={styles.trackingLabel}>Tracking ID</Text>
-          <Text style={styles.trackingId}>{trackingId}</Text>
+          <Text style={[styles.trackingLabel, { color: colors.mutedForeground }]}>Tracking ID</Text>
+          <Text style={[styles.trackingId, { color: colors.foreground }]}>{trackingId}</Text>
         </Card>
 
         <Card style={{ width: "100%", gap: spacing[3] }}>
-          <Text style={styles.nextTitle}>What happens next</Text>
+          <Text style={[styles.nextTitle, { color: colors.foreground }]}>What happens next</Text>
           {NEXT_STEPS.map((step) => (
             <View key={step.label} style={styles.nextRow}>
-              <Ionicons name={step.icon} size={18} color={color.mutedForeground} />
-              <Text style={styles.nextText}>{step.label}</Text>
+              <Ionicons name={step.icon} size={18} color={colors.mutedForeground} />
+              <Text style={[styles.nextText, { color: colors.mutedForeground }]}>{step.label}</Text>
             </View>
           ))}
         </Card>
@@ -70,11 +72,11 @@ export default function ReportConfirmation() {
         {notifyState === "idle" ? (
           <Button label="Notify me about this report" variant="secondary" onPress={handleEnableNotifications} />
         ) : notifyState === "asking" ? (
-          <Text style={styles.notifyHint}>Requesting permission…</Text>
+          <Text style={[styles.notifyHint, { color: colors.mutedForeground }]}>Requesting permission…</Text>
         ) : notifyState === "on" ? (
-          <Text style={styles.notifyHintSuccess}>You'll be notified about updates.</Text>
+          <Text style={[styles.notifyHintSuccess, { color: colors.civicGreen }]}>You'll be notified about updates.</Text>
         ) : (
-          <Text style={styles.notifyHint}>
+          <Text style={[styles.notifyHint, { color: colors.mutedForeground }]}>
             Notifications are off — you can still check status under My reports.
           </Text>
         )}
@@ -107,7 +109,6 @@ const styles = StyleSheet.create({
     width: 76,
     height: 76,
     borderRadius: 38,
-    backgroundColor: color.civicGreen,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing[2],
@@ -115,13 +116,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: fontSize.xl,
     fontFamily: fontFamily.bold,
-    color: color.foreground,
   },
   statusPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing[1],
-    backgroundColor: color.civicBlueSoft,
     paddingHorizontal: spacing[3],
     paddingVertical: 6,
     borderRadius: radius.pill,
@@ -130,12 +129,10 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: color.civicBlue,
   },
   statusText: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.semibold,
-    color: color.civicBlue,
   },
   trackingCard: {
     alignItems: "center",
@@ -145,20 +142,17 @@ const styles = StyleSheet.create({
   trackingLabel: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.medium,
-    color: color.mutedForeground,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   trackingId: {
     fontSize: fontSize.xxl,
     fontFamily: fontFamily.bold,
-    color: color.foreground,
     letterSpacing: -0.5,
   },
   nextTitle: {
     fontSize: fontSize.sm,
     fontFamily: fontFamily.semibold,
-    color: color.foreground,
   },
   nextRow: {
     flexDirection: "row",
@@ -169,18 +163,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: fontSize.sm,
     fontFamily: fontFamily.regular,
-    color: color.mutedForeground,
   },
   notifyHint: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.regular,
-    color: color.mutedForeground,
     textAlign: "center",
   },
   notifyHintSuccess: {
     fontSize: fontSize.xs,
     fontFamily: fontFamily.medium,
-    color: color.civicGreen,
     textAlign: "center",
   },
 });

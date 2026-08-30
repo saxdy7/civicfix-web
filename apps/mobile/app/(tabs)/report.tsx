@@ -20,10 +20,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MapLocationCard } from "../../components/MapLocationCard";
 import { useAuth } from "../../lib/auth-context";
+import { useTheme } from "../../lib/theme-context";
 import { convexClient, isConvexConfigured } from "../../lib/convex-client";
 import { createIssue, uploadIssuePhoto } from "../../lib/repositories/issues";
 import { STATUS_SHORT_LABEL } from "../../lib/status";
-import { color, fontFamily, fontSize, radius, spacing } from "../../lib/theme";
+import { fontFamily, fontSize, radius, spacing } from "../../lib/theme";
 import type { IssueCategory, IssueSeverity } from "../../lib/types";
 
 import { api } from "../../../../convex/_generated/api";
@@ -62,6 +63,7 @@ interface CapturedLocation {
 export default function ReportIssueScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors, isDark } = useTheme();
 
   const [category, setCategory] = useState<IssueCategory | null>(null);
   const [severity, setSeverity] = useState<IssueSeverity>("medium");
@@ -216,25 +218,25 @@ export default function ReportIssueScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={["top"]}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: colors.background }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          style={styles.scrollContainer}
+          style={[styles.scrollContainer, { backgroundColor: colors.background }]}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           {/* Header Title */}
           <View style={styles.header}>
-            <Text style={styles.pageTitle}>Report an issue</Text>
+            <Text style={[styles.pageTitle, { color: colors.foreground }]}>Report an issue</Text>
           </View>
 
           {/* 1. What kind of issue? */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>1. What kind of issue?</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>1. What kind of issue?</Text>
             <View style={styles.grid2x2}>
               {CATEGORIES.map((cat) => {
                 const isSelected = category === cat.key;
@@ -243,7 +245,9 @@ export default function ReportIssueScreen() {
                     key={cat.key}
                     style={[
                       styles.pillButton,
-                      isSelected ? styles.pillButtonActive : styles.pillButtonInactive,
+                      isSelected
+                        ? [styles.pillButtonActive, { backgroundColor: colors.inverseBackground, borderColor: colors.inverseBackground }]
+                        : [styles.pillButtonInactive, { backgroundColor: colors.surface, borderColor: colors.border }],
                     ]}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -253,7 +257,9 @@ export default function ReportIssueScreen() {
                     <Text
                       style={[
                         styles.pillButtonText,
-                        isSelected ? styles.pillButtonTextActive : styles.pillButtonTextInactive,
+                        isSelected
+                          ? [styles.pillButtonTextActive, { color: colors.inverseForeground }]
+                          : [styles.pillButtonTextInactive, { color: colors.foreground }],
                       ]}
                     >
                       {cat.label}
@@ -265,9 +271,9 @@ export default function ReportIssueScreen() {
           </View>
 
           {/* 2. Add a photo */}
-          <View style={styles.cardContainer}>
-            <Text style={styles.cardTitle}>2. Add a photo</Text>
-            <Text style={styles.cardHint}>
+          <View style={[styles.cardContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.foreground }]}>2. Add a photo</Text>
+            <Text style={[styles.cardHint, { color: colors.mutedForeground }]}>
               Strongly recommended — helps AI-assisted triage and speeds routing.
             </Text>
 
@@ -276,13 +282,13 @@ export default function ReportIssueScreen() {
                 <Image source={{ uri: photo.uri }} style={styles.photoPreviewImage} />
                 <View style={styles.photoActionsRow}>
                   <Pressable
-                    style={[styles.pillButton, styles.pillButtonInactive, { flex: 1 }]}
+                    style={[styles.pillButton, { flex: 1, backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                     onPress={handleTakePhoto}
                   >
-                    <Text style={[styles.pillButtonText, styles.pillButtonTextInactive]}>Retake</Text>
+                    <Text style={[styles.pillButtonText, { color: colors.foreground }]}>Retake</Text>
                   </Pressable>
                   <Pressable
-                    style={[styles.pillButton, styles.pillButtonInactive, { flex: 1, borderColor: "rgba(239, 68, 68, 0.4)" }]}
+                    style={[styles.pillButton, { flex: 1, backgroundColor: colors.surfaceMuted, borderColor: "rgba(239, 68, 68, 0.3)" }]}
                     onPress={() => setPhoto(null)}
                   >
                     <Text style={[styles.pillButtonText, { color: "#ef4444" }]}>Remove</Text>
@@ -292,16 +298,16 @@ export default function ReportIssueScreen() {
             ) : (
               <View style={styles.photoButtonsRow}>
                 <Pressable
-                  style={[styles.pillButton, styles.pillButtonActive, { flex: 1 }]}
+                  style={[styles.pillButton, { flex: 1, backgroundColor: colors.inverseBackground, borderColor: colors.inverseBackground }]}
                   onPress={handleTakePhoto}
                 >
-                  <Text style={[styles.pillButtonText, styles.pillButtonTextActive]}>Take photo</Text>
+                  <Text style={[styles.pillButtonText, { color: colors.inverseForeground }]}>Take photo</Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.pillButton, styles.pillButtonInactive, { flex: 1.2 }]}
+                  style={[styles.pillButton, { flex: 1.2, backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                   onPress={handlePickPhoto}
                 >
-                  <Text style={[styles.pillButtonText, styles.pillButtonTextInactive]}>Choose from library</Text>
+                  <Text style={[styles.pillButtonText, { color: colors.foreground }]}>Choose from library</Text>
                 </Pressable>
               </View>
             )}
@@ -309,7 +315,7 @@ export default function ReportIssueScreen() {
 
           {/* 3. Where is it? */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>3. Where is it?</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>3. Where is it?</Text>
             <MapLocationCard
               latitude={location ? location.latitude : null}
               longitude={location ? location.longitude : null}
@@ -330,11 +336,11 @@ export default function ReportIssueScreen() {
 
             {/* Landmark Input */}
             <View style={{ marginTop: spacing[3] }}>
-              <Text style={styles.inputLabel}>Nearest landmark or cross street (optional)</Text>
+              <Text style={[styles.inputLabel, { color: colors.mutedForeground }]}>Nearest landmark or cross street (optional)</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
                 placeholder="e.g. Maple & 5th St, near Community Park"
-                placeholderTextColor="#64748b"
+                placeholderTextColor={colors.dimForeground}
                 value={neighborhood}
                 onChangeText={setNeighborhood}
               />
@@ -343,12 +349,12 @@ export default function ReportIssueScreen() {
 
           {/* SIMILAR REPORTS NEARBY */}
           {similarIssues.length > 0 ? (
-            <View style={styles.cardContainer}>
-              <Text style={[styles.cardTitle, { color: "#f59e0b" }]}>Similar reports nearby</Text>
-              <Text style={styles.cardHint}>Consider confirming one of these instead of filing a new report.</Text>
+            <View style={[styles.cardContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.cardTitle, { color: "#d97706" }]}>Similar reports nearby</Text>
+              <Text style={[styles.cardHint, { color: colors.mutedForeground }]}>Consider confirming one of these instead of filing a new report.</Text>
               {similarIssues.map((s) => (
                 <View key={s._id} style={{ marginTop: 4 }}>
-                  <Text style={styles.cardHint}>
+                  <Text style={[styles.cardHint, { color: colors.mutedForeground }]}>
                     • {s.trackingId} · {STATUS_SHORT_LABEL[s.status]} · ~{Math.round(s.distanceM)}m away
                   </Text>
                 </View>
@@ -358,8 +364,8 @@ export default function ReportIssueScreen() {
 
           {/* 4. How urgent is it? */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>4. How urgent is it?</Text>
-            <Text style={styles.cardHint}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>4. How urgent is it?</Text>
+            <Text style={[styles.cardHint, { color: colors.mutedForeground }]}>
               Your assessment is a signal — staff confirm severity during triage.
             </Text>
             <View style={[styles.grid2x2, { marginTop: spacing[3] }]}>
@@ -370,7 +376,9 @@ export default function ReportIssueScreen() {
                     key={s.key}
                     style={[
                       styles.pillButton,
-                      isSelected ? styles.pillButtonActive : styles.pillButtonInactive,
+                      isSelected
+                        ? [styles.pillButtonActive, { backgroundColor: colors.inverseBackground, borderColor: colors.inverseBackground }]
+                        : [styles.pillButtonInactive, { backgroundColor: colors.surface, borderColor: colors.border }],
                     ]}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -380,7 +388,9 @@ export default function ReportIssueScreen() {
                     <Text
                       style={[
                         styles.pillButtonText,
-                        isSelected ? styles.pillButtonTextActive : styles.pillButtonTextInactive,
+                        isSelected
+                          ? [styles.pillButtonTextActive, { color: colors.inverseForeground }]
+                          : [styles.pillButtonTextInactive, { color: colors.foreground }],
                       ]}
                     >
                       {s.label}
@@ -393,23 +403,23 @@ export default function ReportIssueScreen() {
 
           {/* 5. Describe the issue */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>5. Describe the issue</Text>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>5. Describe the issue</Text>
             <TextInput
-              style={styles.textAreaInput}
+              style={[styles.textAreaInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.foreground }]}
               placeholder={DESCRIPTION_EXAMPLE}
-              placeholderTextColor="#64748b"
+              placeholderTextColor={colors.dimForeground}
               multiline
               numberOfLines={4}
               value={description}
               onChangeText={setDescription}
             />
-            <Text style={styles.charCountText}>
+            <Text style={[styles.charCountText, { color: colors.mutedForeground }]}>
               {description.trim().length} characters — minimum 10.
             </Text>
 
             {description.trim().length >= 4 ? (
               <Pressable
-                style={styles.aiTriageBtn}
+                style={[styles.aiTriageBtn, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}
                 onPress={() => {
                   const lower = description.toLowerCase();
                   if (lower.includes("pothole") || lower.includes("road") || lower.includes("crater") || lower.includes("asphalt") || lower.includes("pavement")) {
@@ -433,16 +443,16 @@ export default function ReportIssueScreen() {
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
                 }}
               >
-                <Ionicons name="sparkles" size={16} color="#ffffff" />
-                <Text style={styles.aiTriageBtnText}>✨ AI Auto-Classify (Category & Severity)</Text>
+                <Ionicons name="sparkles" size={16} color={colors.foreground} />
+                <Text style={[styles.aiTriageBtnText, { color: colors.foreground }]}>✨ AI Auto-Classify (Category & Severity)</Text>
               </Pressable>
             ) : null}
           </View>
 
           {/* Privacy Note */}
-          <View style={styles.privacyCard}>
-            <Ionicons name="lock-closed-outline" size={16} color="#8e8e8e" />
-            <Text style={styles.privacyNoteText}>
+          <View style={[styles.privacyCard, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+            <Ionicons name="lock-closed-outline" size={16} color={colors.mutedForeground} />
+            <Text style={[styles.privacyNoteText, { color: colors.mutedForeground }]}>
               Your exact location and contact details are only visible to authorized staff. Public maps show a generalized location, and EXIF metadata is stripped from your photo.
             </Text>
           </View>
@@ -454,6 +464,7 @@ export default function ReportIssueScreen() {
             <Pressable
               style={[
                 styles.submitButton,
+                { backgroundColor: colors.inverseBackground },
                 !canSubmit || submitting ? styles.submitButtonDisabled : null,
               ]}
               disabled={!canSubmit || submitting}
@@ -461,13 +472,13 @@ export default function ReportIssueScreen() {
             >
               {submitting ? (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <ActivityIndicator color="#000000" size="small" />
-                  <Text style={styles.submitButtonText}>
+                  <ActivityIndicator color={colors.inverseForeground} size="small" />
+                  <Text style={[styles.submitButtonText, { color: colors.inverseForeground }]}>
                     {uploadStage === "photo" ? "Uploading photo…" : "Submitting…"}
                   </Text>
                 </View>
               ) : (
-                <Text style={styles.submitButtonText}>Submit report</Text>
+                <Text style={[styles.submitButtonText, { color: colors.inverseForeground }]}>Submit report</Text>
               )}
             </Pressable>
           </View>
@@ -480,11 +491,9 @@ export default function ReportIssueScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: "#000000",
   },
   scrollContent: {
     paddingHorizontal: spacing[4],
@@ -498,7 +507,6 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 26,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
     letterSpacing: -0.5,
   },
   section: {
@@ -507,7 +515,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
     letterSpacing: -0.2,
   },
   grid2x2: {
@@ -523,45 +530,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing[3],
-  },
-  pillButtonInactive: {
-    backgroundColor: "#18181b",
     borderWidth: 1,
-    borderColor: "#27272a",
   },
-  pillButtonActive: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#ffffff",
-  },
+  pillButtonInactive: {},
+  pillButtonActive: {},
   pillButtonText: {
     fontSize: 15,
     fontFamily: fontFamily.semibold,
   },
-  pillButtonTextInactive: {
-    color: "#ffffff",
-  },
+  pillButtonTextInactive: {},
   pillButtonTextActive: {
-    color: "#000000",
     fontFamily: fontFamily.bold,
   },
   cardContainer: {
-    backgroundColor: "#121214",
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    borderColor: "#27272a",
     gap: 8,
   },
   cardTitle: {
     fontSize: 16,
     fontFamily: fontFamily.bold,
-    color: "#ffffff",
   },
   cardHint: {
     fontSize: 13,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     lineHeight: 18,
   },
   photoButtonsRow: {
@@ -577,7 +570,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 180,
     borderRadius: 14,
-    backgroundColor: "#18181b",
   },
   photoActionsRow: {
     flexDirection: "row",
@@ -586,28 +578,21 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontFamily: fontFamily.medium,
-    color: "#8e8e8e",
     marginBottom: 8,
   },
   textInput: {
-    backgroundColor: "#121214",
     borderWidth: 1,
-    borderColor: "#27272a",
     borderRadius: 12,
     paddingHorizontal: 14,
     height: 48,
-    color: "#ffffff",
     fontSize: 14,
     fontFamily: fontFamily.regular,
   },
   textAreaInput: {
-    backgroundColor: "#121214",
     borderWidth: 1,
-    borderColor: "#27272a",
     borderRadius: 14,
     padding: 14,
     minHeight: 110,
-    color: "#ffffff",
     fontSize: 14,
     fontFamily: fontFamily.regular,
     textAlignVertical: "top",
@@ -615,7 +600,6 @@ const styles = StyleSheet.create({
   charCountText: {
     fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     marginTop: 4,
   },
   aiTriageBtn: {
@@ -623,39 +607,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing[2],
-    backgroundColor: "#18181b",
-    borderWidth: 1,
-    borderColor: "#27272a",
     borderRadius: radius.pill,
+    borderWidth: 1,
     height: 44,
     marginTop: spacing[2],
   },
   aiTriageBtnText: {
     fontSize: 13,
     fontFamily: fontFamily.semibold,
-    color: "#ffffff",
   },
   privacyCard: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: spacing[2],
-    backgroundColor: "#121214",
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#27272a",
   },
   privacyNoteText: {
     flex: 1,
     fontSize: 12,
     fontFamily: fontFamily.regular,
-    color: "#8e8e8e",
     lineHeight: 18,
   },
   errorText: {
     fontSize: 13,
     fontFamily: fontFamily.medium,
-    color: "#ff9a92",
+    color: "#dc2626",
     textAlign: "center",
   },
   submitSection: {
@@ -666,7 +644,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 54,
     borderRadius: radius.pill,
-    backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -676,6 +653,5 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontFamily: fontFamily.bold,
-    color: "#000000",
   },
 });
